@@ -9,7 +9,7 @@ retention pruning. Implemented as a bash script pair:
 | `scripts/restore_hermes.sh` | decrypt / verify / extract helper |
 
 Output lives in `~/.hermes-backups/` as
-`hermes-backup-YYYYMMDD_HHMMSS.tar.gz.gpg` (the timestamp sorts
+`hermes-backup-YYYYMMDD_HHMMSS.tar.gz.gpg` (UTC timestamps; the timestamp sorts
 lexicographically, which is what makes retention pruning by filename safe).
 
 ## Design rationale
@@ -24,11 +24,15 @@ without its database, a half-written page, a database that fails
 
 Snapshotting with the sqlite online backup API — i.e.
 `sqlite3 <db> '.backup <tmp>'` — takes a consistent snapshot that respects
-SQLite's locking and WAL mode even while the gateway is writing. Each of the
-three databases is snapshotted into a `mktemp -d` directory, that directory is
-referenced by tar (the live `*.db` files and their `-wal`/`-shm` sidecars are
-excluded), and the whole `mktemp -d` directory is removed via a `trap ... EXIT`
-afterwards. Result: a single, consistent, single-member tarball.
+SQLite's locking and WAL mode even while the gateway is writing. The backup
+uses a 15s busy timeout (`.timeout 15000`) so a momentarily locked database is
+waited on rather than failing the run. Each of the three databases is
+snapshotted into a throwaway directory on **real disk** under
+`~/.hermes-backups` (not `/tmp`, which may be tmpfs/RAM), that directory is
+referenced by tar (the live `*.db` files and their `-wal`/`-shm`/`-journal`
+sidecars are excluded), and the whole directory is removed via a
+`trap ... EXIT` afterwards. Result: a single, consistent, single-member
+tarball.
 
 ### Why GPG symmetric encryption
 
@@ -39,8 +43,9 @@ or a compromised machine. The tarball is therefore piped straight into gpg
 plaintext, is the only thing that ever touches disk**. The plaintext tarball
 exists only inside a memory pipe between `tar` and `gpg`. Exclusions
 (`hermes-agent/`, `bin/`, `cache/`, images, `*.pyc`, `*.lock`, `gateway.pid`,
-`gateway_state.json`, `.hermes_history`, and the live DB files) keep the backup
-small and free of the git source checkout and transient caches.
+`gateway_state.json`, `.hermes_history`, and the live DB files with their
+`-wal`/`-shm`/`-journal` sidecars) keep the backup small and free of the git
+source checkout and transient caches.
 
 ### Why the passphrase lives outside the backup set
 
@@ -61,13 +66,20 @@ at runtime, and the path is overridable via `PASSFILE` (or
    pacman -S --needed gnupg sqlite tar gzip coreutils
    ```
 
-2. Generate a passphrase file and lock its permissions:
+2. Generate a passphrase file and lock its permissions (the `umask 077` ensures
+   the file is created `600` from the start — never world-readable, not even
+   transiently):
 
    ```
    mkdir -p ~/.config/hermes-backup
-   openssl rand -base64 32 > ~/.config/hermes-backup/gpg-passphrase
+   (umask 077; openssl rand -base64 32 > ~/.config/hermes-backup/gpg-passphrase)
    chmod 600 ~/.config/hermes-backup/gpg-passphrase
+   stat -c %a ~/.config/hermes-backup/gpg-passphrase   # must print 600
    ```
+
+   Both scripts **enforce** mode 600 and refuse to run if the file is more
+   permissive than that (they also require it to exist, be non-empty, and be
+   readable).
 
 3. **Store a copy in a password manager.** The passphrase deliberately lives
    outside the backup set, so a backup restored on a fresh machine can only be
@@ -119,7 +131,9 @@ Pruning only happens **after** the new backup was created **and** its integrity
 was verified (decrypt → `tar -tz` must succeed), so a failed backup never
 triggers deletion of older good ones. The count shown in the summary line is the
 number of backups remaining after pruning. Set `RETENTION` to override (e.g.
-`RETENTION=30 bash scripts/backup_hermes.sh`).
+`RETENTION=30 bash scripts/backup_hermes.sh`). Stale `.incomplete-*.gpg`
+temporaries older than a day are swept on every run, and a `flock` guard makes
+concurrent runs fail loudly instead of racing over the same second.
 
 ## Restore procedure
 
@@ -131,13 +145,12 @@ bash scripts/restore_hermes.sh ~/.hermes-backups/hermes-backup-20260812_080000.t
 
 With no dest-dir, the script creates a `mktemp -d` scratch dir, decrypts,
 verifies with `tar -tz`, extracts (the tree then contains `.hermes/...`), prints
-the destination path, and runs `PRAGMA integrity_check` on the restored
-`.hermes/state.db` to prove the restore worked. Inspect the result before going
-any further:
-
-```
-sqlite3 "$(ls -td /tmp/tmp.* | head -1)/.hermes/state.db" 'PRAGMA integrity_check;'
-```
+the destination path, and runs `PRAGMA integrity_check` on every database found
+in the restored archive to prove the restore worked. Inspect the result before
+going any further — the script itself prints `state.db integrity: ok` and the
+`Using scratch restore dir: <path>` line; use that exact `<path>` if you want to
+poke at the restored files by hand. Don't guess at `/tmp/tmp.*` globs, which can
+race other scratch dirs.
 
 A full live restore is **destructive** — it overwrites files in the destination:
 
@@ -151,6 +164,16 @@ sqlite3 ~/.hermes/state.db 'PRAGMA integrity_check;'   # -> ok
 # 4. Restart the gateway:
 #    systemctl --user start hermes-gateway
 ```
+
+The script infers the archive root from the archive itself. Because the
+archive members carry the `.hermes/` prefix, passing the hermes home itself as
+dest-dir (`~/.hermes`, whose basename matches the archive root) puts the script
+into **live mode**: it extracts with `--strip-components=1` so `config.yaml`
+and `state.db` genuinely overwrite the live files, then asserts that no
+`.hermes/.hermes/` nesting occurred and that `config.yaml` landed at live depth.
+If you instead pass a *parent* directory (e.g. `~`), the archive root is
+preserved and the same result is achieved by extracting `.hermes/` into it.
+Anything else (scratch dirs, etc.) keeps the `.hermes/` prefix untouched.
 
 Use `--passphrase-file <file>` (or the `PASSFILE` env var) if your passphrase
 file is not at the default location. The restore script writes **only** to the
@@ -166,6 +189,10 @@ you stop/start the gateway yourself.
   the passphrase file was never created, or `PASSFILE` points elsewhere.
   Generate it with the `openssl rand` one-time setup above (and make sure the
   copy in your password manager matches).
+
+- **`ERROR: passphrase file must be mode 600 (got 644): ...`**: the scripts
+  refuse to run against a more permissive passphrase file. Re-run the setup
+  recipe above (or `chmod 600` the file).
 
 - **`gpg: decryption failed: No secret key` / `Bad session key`**: the passphrase
   file is wrong for this backup. The passphrase is the backup's identity — if it
@@ -186,11 +213,18 @@ you stop/start the gateway yourself.
   present before running.
 
 - **`ERROR: sqlite .backup failed for <db>`**: SQLite could not snapshot the
-  database (e.g. disk full, permissions, or a database that is genuinely broken).
-  The backup aborts without touching retention. Run
-  `sqlite3 ~/.hermes/<db> 'PRAGMA integrity_check;'` to diagnose the database.
+  database within the 15s busy timeout (e.g. disk full, permissions, a long-held
+  write lock, or a database that is genuinely broken). The backup aborts without
+  touching retention. Run
+  `sqlite3 ~/.hermes/<db> '.timeout 5000' 'PRAGMA integrity_check;'` to diagnose
+  the database.
 
-- **`WARN: state.db integrity` in the summary**: the live `state.db` failed
-  `PRAGMA integrity_check`. The backup is still created (a snapshot of the
+- **`ERROR: another backup run is in progress`**: a previous backup still holds
+  the `~/.hermes-backups/.lock` flock. Wait for it to finish (or remove the lock
+  if the process died without releasing it).
+
+- **`WARN: <db> integrity` in the summary** (e.g. `state.db`, `kanban.db`,
+  `verification_evidence.db`): the live database failed `PRAGMA integrity_check`
+  (with a 5s busy timeout). The backup is still created (a snapshot of the
   current bytes) but the source database may be damaged — investigate the live
   database.

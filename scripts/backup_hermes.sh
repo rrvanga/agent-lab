@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # backup_hermes.sh — crash-safe, encrypted daily backup of the Hermes agent home.
 #
-# Produces BACKUP_DIR/hermes-backup-YYYYMMDD_HHMMSS.tar.gz.gpg containing a
-# consistent snapshot of ~/.hermes (state.db / kanban.db / verification_evidence.db
-# are snapshotted via the sqlite online backup API while the gateway is live),
-# encrypted with gpg AES256 before it ever touches disk.
+# Produces BACKUP_DIR/hermes-backup-YYYYMMDD_HHMMSS.tar.gz.gpg (UTC timestamps)
+# containing a consistent snapshot of ~/.hermes (state.db / kanban.db /
+# verification_evidence.db are snapshotted via the sqlite online backup API while
+# the gateway is live, with a 15s busy timeout so a busy database waits instead
+# of dying), encrypted with gpg AES256 before it ever touches disk.
 #
 # Cron contract: stdout is delivered verbatim. On success exactly one short
 # summary line is printed; on failure a clear error is printed (also to stderr)
@@ -30,7 +31,7 @@ die() {
 }
 
 # --- prerequisite checks (fail loudly, no partial work) ---------------------
-for tool in tar gzip gpg sqlite3 mktemp stat date; do
+for tool in tar gzip gpg sqlite3 mktemp stat date awk flock; do
     command -v "$tool" >/dev/null 2>&1 || die "required tool '$tool' not found in PATH"
 done
 
@@ -38,34 +39,48 @@ done
 [ -f "$PASSFILE" ]    || die "passphrase file not found: $PASSFILE (create it or set PASSFILE)"
 [ -s "$PASSFILE" ]    || die "passphrase file is empty: $PASSFILE"
 [ -r "$PASSFILE" ]    || die "passphrase file not readable: $PASSFILE"
+passfile_mode="$(stat -c %a "$PASSFILE")" || die "could not stat passphrase file: $PASSFILE"
+[ "$passfile_mode" = 600 ] || die "passphrase file must be mode 600 (got $passfile_mode): $PASSFILE"
 [ "$RETENTION" -ge 1 ] 2>/dev/null || die "RETENTION must be a positive integer (got '$RETENTION')"
 
-mkdir -p "$BACKUP_DIR"
-chmod 700 "$BACKUP_DIR"
+mkdir -p -- "$BACKUP_DIR"  || die "could not create backup dir: $BACKUP_DIR"
+chmod 700 -- "$BACKUP_DIR" || die "could not chmod 700 backup dir: $BACKUP_DIR"
 
-# --- live integrity probe (warn only, never abort) --------------------------
-WARN=""
-if state_integrity="$(sqlite3 "$HERMES_HOME/state.db" 'PRAGMA integrity_check;' 2>/dev/null)"; then
-    if [ "$state_integrity" != "ok" ]; then
-        WARN=" WARN: state.db integrity"
-    fi
-else
-    WARN=" WARN: state.db integrity"
+# --- concurrency lock: refuse concurrent runs instead of racing --------------
+if ! exec 9>"$BACKUP_DIR/.lock"; then
+    die "could not create lock file: $BACKUP_DIR/.lock"
 fi
+flock -n 9 || die "another backup run is in progress (lock held: $BACKUP_DIR/.lock)"
+
+# --- sweep stale incomplete files (>1 day) -----------------------------------
+find "$BACKUP_DIR" -maxdepth 1 -name '.incomplete-*' -mtime +1 -delete 2>/dev/null || true
+
+# --- live integrity probe (warn only, never abort) ---------------------------
+snap_files=(state.db kanban.db verification_evidence.db)
+WARN=""
+for db in "${snap_files[@]}"; do
+    if [ -f "$HERMES_HOME/$db" ]; then
+        if state_integrity="$(sqlite3 "$HERMES_HOME/$db" ".timeout 5000" 'PRAGMA integrity_check;' 2>/dev/null)"; then
+            [ "$state_integrity" = "ok" ] || WARN="${WARN} WARN: $db integrity"
+        else
+            WARN="${WARN} WARN: $db integrity"
+        fi
+    fi
+done
 
 # --- consistent snapshot of the live sqlite databases -----------------------
 # The gateway writes state.db / kanban.db / verification_evidence.db while
 # running, so tar must never read them directly. sqlite .backup uses the online
-# backup API and yields a consistent copy; the copies land in a throwaway dir
-# that is removed on exit.
-WORK="$(mktemp -d)"
+# backup API and yields a consistent copy; the copies land in a throwaway dir on
+# real disk under BACKUP_DIR (not /tmp, which may be tmpfs/RAM) and are removed
+# on exit.
+WORK="$(mktemp -d "$BACKUP_DIR/.snap.XXXXXX")" || die "could not create snapshot dir under $BACKUP_DIR"
 trap 'rm -rf -- "$WORK"' EXIT
 
-snap_files=(state.db kanban.db verification_evidence.db)
 snap_operands=()
 for db in "${snap_files[@]}"; do
     if [ -f "$HERMES_HOME/$db" ]; then
-        sqlite3 "$HERMES_HOME/$db" ".backup '$WORK/$db'" || die "sqlite .backup failed for $db"
+        sqlite3 "$HERMES_HOME/$db" ".timeout 15000" ".backup '$WORK/$db'" || die "sqlite .backup failed for $db"
         snap_operands+=("$db")
     fi
 done
@@ -91,6 +106,7 @@ excludes=(
     --exclude='*.lock'
     --exclude='*.db-wal'
     --exclude='*.db-shm'
+    --exclude='*.db-journal'
     --exclude="$HERMES_NAME/state.db"
     --exclude="$HERMES_NAME/kanban.db"
     --exclude="$HERMES_NAME/verification_evidence.db"
@@ -105,7 +121,7 @@ if [ "${#snap_operands[@]}" -gt 0 ]; then
 fi
 
 # --- encrypt BEFORE touching disk -------------------------------------------
-TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
+TIMESTAMP="$(date -u +%Y%m%d_%H%M%S)"
 NEW="hermes-backup-$TIMESTAMP.tar.gz.gpg"
 TMPOUT="$BACKUP_DIR/.incomplete-$TIMESTAMP-$$.gpg"
 
@@ -116,7 +132,7 @@ if ! tar "${tar_args[@]}" | gpg --batch --yes --symmetric --cipher-algo AES256 \
 fi
 
 # --- verify the NEW backup BEFORE pruning anything ---------------------------
-if ! gpg --batch --yes -d --passphrase-file "$PASSFILE" "$TMPOUT" | tar -tz >/dev/null; then
+if ! gpg --batch --yes -d --passphrase-file "$PASSFILE" "$TMPOUT" 2>/dev/null | tar -tz >/dev/null; then
     rm -f -- "$TMPOUT"
     die "integrity verification of the new backup failed; nothing written, nothing pruned"
 fi
@@ -128,7 +144,7 @@ shopt -s nullglob
 existing=("$BACKUP_DIR"/hermes-backup-*.tar.gz.gpg)
 if [ "${#existing[@]}" -gt "$RETENTION" ]; then
     remove_count=$(( ${#existing[@]} - RETENTION ))
-    rm -f -- "${existing[@]:0:$remove_count}"
+    rm -f -- "${existing[@]:0:$remove_count}" || die "retention prune failed (new backup $NEW is safe)"
     existing=("$BACKUP_DIR"/hermes-backup-*.tar.gz.gpg)
 fi
 
