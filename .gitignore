@@ -1,0 +1,40 @@
+# Secrets never get committed. Ever.
+
+# Hermes secrets & state
+.env
+auth.json
+auth.lock
+gateway.lock
+gateway.pid
+state.db
+state.db-shm
+state.db-wal
+kanban.db
+kanban.db-shm
+kanban.db-wal
+context_length_cache.yaml
+*.cache
+caches/
+
+# Runtime dirs
+sessions/
+gateway/
+logs/
+pastes/
+pending_messages/
+sandboxes/
+audio_cache/
+image_cache/
+images/
+state/
+
+# Backups & noise
+*.backup
+*.bak.*
+gateway-restart.log
+gateway-starts.log
+
+# OS / editor
+.DS_Store
+*.swp
+*~
