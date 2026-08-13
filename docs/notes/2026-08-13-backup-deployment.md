@@ -38,3 +38,21 @@ Issue #2 (Automated backup of ~/.hermes) — production deployment day.
   list before `mv`), `.incomplete-*` cleanup, mode checks on passphrase (600).
 - Potential NIT for later: archive files are 644 — fine (ciphertext), but 600
   would be defense-in-depth; a `umask 077` in the script would do it.
+- **Issue #2 CLOSED 2026-08-13** (squash 5723362 into main): MoA gate
+  returned CHANGES-REQUIRED — 4 blockers: B1 `stat -c` GNU-only
+  (portability), B2 no explicit confirmation before overwriting live
+  `~/.hermes`, B3 stale SQLite WAL/SHM sidecars, B4 no archive-member
+  traversal validation. All fixed (portable stat probe, `--live` flag +
+  refusal, sidecar cleanup, `validate_member()`), verified empirically:
+  scratch restore integrity OK (3 DBs), live refusal, traversal rejection,
+  prod backup clean. Scripts tracked 100755 (were 100644 since Aug 12).
+- **MOA gate can exit non-zero AFTER delivering the full review** (this
+  run: HTTP 500 after 3 retries, 32 min in). Check the .out file's
+  content before re-running — a dead process can still hold a complete
+  verdict. The gate also got stuck iterating on its OWN /tmp test harness
+  (run_tests.sh syntax error), so its final verdict line never printed;
+  treat the per-reviewer blocker lists as authoritative.
+- **Sub-agents hit ceilings too** (merge-finisher ran 29 min, delivered
+  fixes + honest report, left verification undone). The finishing move —
+  verify, commit, merge — is quick for the primary agent; sub-agents are
+  for the heavy lifting, verification stays home.
