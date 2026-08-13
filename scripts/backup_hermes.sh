@@ -35,11 +35,22 @@ for tool in tar gzip gpg sqlite3 mktemp stat date awk flock; do
     command -v "$tool" >/dev/null 2>&1 || die "required tool '$tool' not found in PATH"
 done
 
+# --- portable stat: GNU stat (-c %a) vs BSD stat (-f %Lp) --------------------
+if stat -c %a / >/dev/null 2>&1; then
+    STAT_MODE_FLAG='-c'
+    STAT_MODE_FMT='%a'
+    STAT_SIZE_FMT='%s'
+else
+    STAT_MODE_FLAG='-f'
+    STAT_MODE_FMT='%Lp'
+    STAT_SIZE_FMT='%z'
+fi
+
 [ -d "$HERMES_HOME" ] || die "hermes home not found: $HERMES_HOME"
 [ -f "$PASSFILE" ]    || die "passphrase file not found: $PASSFILE (create it or set PASSFILE)"
 [ -s "$PASSFILE" ]    || die "passphrase file is empty: $PASSFILE"
 [ -r "$PASSFILE" ]    || die "passphrase file not readable: $PASSFILE"
-passfile_mode="$(stat -c %a "$PASSFILE")" || die "could not stat passphrase file: $PASSFILE"
+passfile_mode="$(stat "$STAT_MODE_FLAG" "$STAT_MODE_FMT" "$PASSFILE")" || die "could not stat passphrase file: $PASSFILE"
 [ "$passfile_mode" = 600 ] || die "passphrase file must be mode 600 (got $passfile_mode): $PASSFILE"
 [ "$RETENTION" -ge 1 ] 2>/dev/null || die "RETENTION must be a positive integer (got '$RETENTION')"
 
@@ -148,7 +159,7 @@ if [ "${#existing[@]}" -gt "$RETENTION" ]; then
     existing=("$BACKUP_DIR"/hermes-backup-*.tar.gz.gpg)
 fi
 
-BYTES="$(stat -c %s "$BACKUP_DIR/$NEW")"
+BYTES="$(stat "$STAT_MODE_FLAG" "$STAT_SIZE_FMT" "$BACKUP_DIR/$NEW")"
 SIZE_MB="$(awk -v b="$BYTES" 'BEGIN { printf "%.1f", b / 1048576 }')"
 
 printf 'backup OK: %s (%s MB, %d kept)%s\n' "$NEW" "$SIZE_MB" "${#existing[@]}" "$WARN"
