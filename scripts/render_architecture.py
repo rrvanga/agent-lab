@@ -1,0 +1,355 @@
+#!/usr/bin/env python3
+"""
+Render the agent-lab architecture poster from LIVE state, PII-masked.
+
+Sources read at render time (so the diagram stays current automatically):
+  - cron jobs:  ~/.hermes/cron/jobs.json   (name / schedule / type / script ONLY)
+  - local repos: ~/dev/                     (directory names ONLY)
+
+Outputs (both committed):
+  - assets/architecture.html   regenerated source
+  - assets/architecture.png    headless-Chromium render, Pillow-verified
+
+Secrets are never read or rendered: deliver targets, chat IDs, origin,
+provider keys/tokens, prompts and model snapshots are deliberately ignored.
+The only fields pulled from jobs.json are name, schedule, no_agent and script.
+
+PII-masking rules baked in: no usernames, no real names, no hostname, no IPs,
+no account/chat IDs, no API key names, no provider URLs. Paths are shown as
+generic `~/.hermes` rather than an absolute home path.
+"""
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+HOME = Path.home()
+REPO = Path(__file__).resolve().parent.parent
+ASSETS = REPO / "assets"
+JOBS = HOME / ".hermes" / "cron" / "jobs.json"
+DEV = HOME / "dev"
+
+# ---------------------------------------------------------------------------
+# Live data (masked)
+# ---------------------------------------------------------------------------
+
+def cron_human(expr: str):
+    """Turn a 5-field cron expr into (hhmm, human label). Never fails hard."""
+    try:
+        minute, hour, _dom, _mon, dow = expr.split()
+        hhmm = f"{int(hour):02d}:{int(minute):02d}"
+        if dow == "*":
+            label = "daily"
+        elif dow == "1-5":
+            label = "Mon–Fri"
+        else:
+            label = f"cron {expr}"
+        return hhmm, label
+    except Exception:
+        return "", expr
+
+
+def load_cron_jobs():
+    """Recurring cron jobs only (skip one-shots / completed), sorted by time."""
+    rows = []
+    try:
+        jobs = json.loads(Path(JOBS).read_text())
+    except (OSError, json.JSONDecodeError):
+        return rows  # no cron store -> empty table, diagram still renders
+    jobs = jobs.get("jobs", jobs) if isinstance(jobs, dict) else jobs
+    for j in jobs:
+        sched = j.get("schedule") or {}
+        if sched.get("kind") != "cron":
+            continue
+        hhmm, label = cron_human(sched.get("expr", ""))
+        rows.append({
+            "time": hhmm,
+            "label": label,
+            "name": j.get("name", "?"),
+            "kind": "no_agent" if j.get("no_agent") else "agent",
+            "script": j.get("script") or "",
+        })
+    rows.sort(key=lambda r: r["time"])
+    return rows
+
+
+def load_repos():
+    """Local project directories (names only)."""
+    repos = []
+    if DEV.is_dir():
+        for d in sorted(DEV.iterdir()):
+            if d.is_dir() and not d.name.startswith("."):
+                repos.append(d.name)
+    return repos
+
+
+# ---------------------------------------------------------------------------
+# HTML
+# ---------------------------------------------------------------------------
+
+def esc(s):
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def cron_table(rows):
+    if not rows:
+        return "<p class='muted'>No recurring cron jobs found.</p>"
+    trs = []
+    for r in rows:
+        badge = (
+            f"<span class='badge script' title='runs a script directly, zero LLM tokens'>"
+            f"no-agent</span>" if r["kind"] == "no_agent"
+            else "<span class='badge agent' title='runs the LLM agent'>agent</span>"
+        )
+        mech = esc(r["script"]) if r["script"] else "LLM prompt"
+        trs.append(
+            f"<tr><td class='t'>{r['time']}</td>"
+            f"<td class='l'>{r['label']}</td>"
+            f"<td class='n'>{esc(r['name'])}</td>"
+            f"<td>{badge}</td>"
+            f"<td class='m'>{mech}</td></tr>"
+        )
+    return (
+        "<table><thead><tr><th>Time</th><th>Cadence</th><th>Job</th>"
+        "<th>Type</th><th>Mechanism</th></tr></thead><tbody>"
+        + "".join(trs) + "</tbody></table>"
+    )
+
+
+def repo_chips(repos):
+    if not repos:
+        return "<p class='muted'>No local repos found.</p>"
+    return "".join(f"<span class='chip'>{esc(r)}</span>" for r in repos)
+
+
+def build_html(rows, repos):
+    return f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<style>
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #eef1f6; color: #1e293b; width: 1380px; margin: 0 auto; padding: 0;
+    font-size: 17px; line-height: 1.5;
+  }}
+  header {{
+    background: #0f172a; color: #f8fafc; padding: 28px 34px 22px;
+  }}
+  header h1 {{ font-size: 30px; font-weight: 700; letter-spacing: .3px; }}
+  header .sub {{ color: #94a3b8; margin-top: 6px; font-size: 15px; }}
+  main {{ padding: 26px 34px 40px; }}
+  section {{
+    background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;
+    padding: 22px 26px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(15,23,42,.05);
+  }}
+  section h2 {{
+    font-size: 20px; font-weight: 700; margin-bottom: 14px;
+    padding-bottom: 8px; border-bottom: 2px solid #eef1f6;
+  }}
+  section h2 .num {{
+    display: inline-block; width: 26px; height: 26px; line-height: 26px;
+    text-align: center; border-radius: 7px; background: #eef2ff; color: #4338ca;
+    font-size: 15px; margin-right: 9px; vertical-align: 2px;
+  }}
+  .grid {{ display: flex; gap: 18px; flex-wrap: wrap; }}
+  .fact {{
+    flex: 1 1 300px; background: #f8fafc; border: 1px solid #e2e8f0;
+    border-left: 4px solid #6366f1; border-radius: 9px; padding: 14px 16px;
+  }}
+  .fact b {{ display: block; font-size: 15px; margin-bottom: 4px; color: #334155; }}
+  .fact span {{ color: #475569; font-size: 15px; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 15px; }}
+  th, td {{ text-align: left; padding: 9px 12px; border-bottom: 1px solid #eef1f6; }}
+  thead th {{ background: #f8fafc; color: #475569; font-weight: 600; font-size: 13px;
+              text-transform: uppercase; letter-spacing: .4px; }}
+  td.t {{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600;
+          color: #0f172a; white-space: nowrap; }}
+  td.l {{ color: #64748b; white-space: nowrap; }}
+  td.n {{ font-weight: 600; }}
+  td.m {{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #475569;
+          font-size: 14px; }}
+  .badge {{ display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12.5px;
+            font-weight: 600; white-space: nowrap; }}
+  .badge.agent {{ background: #dbeafe; color: #1d4ed8; }}
+  .badge.script {{ background: #dcfce7; color: #15803d; }}
+  .chip {{
+    display: inline-block; background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe;
+    border-radius: 999px; padding: 7px 15px; margin: 4px 6px 4px 0; font-size: 15px; font-weight: 600;
+  }}
+  .flow {{ display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }}
+  .node {{
+    background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 9px;
+    padding: 10px 15px; font-size: 15px; font-weight: 600; color: #334155;
+  }}
+  .node.acc {{ border-color: #818cf8; background: #eef2ff; color: #4338ca; }}
+  .node.dst {{ border-color: #34d399; background: #ecfdf5; color: #047857; }}
+  .arrow {{ color: #94a3b8; font-size: 20px; }}
+  ul {{ list-style: none; }}
+  li {{ padding: 5px 0 5px 22px; position: relative; color: #475569; font-size: 15px; }}
+  li::before {{ content: "•"; position: absolute; left: 4px; color: #6366f1; font-weight: 700; }}
+  li b {{ color: #334155; }}
+  .steps {{ display: flex; flex-wrap: wrap; gap: 8px; }}
+  .step {{
+    background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 9px;
+    padding: 8px 13px; font-size: 14px; color: #334155;
+  }}
+  .step b {{ color: #0f172a; }}
+  .muted {{ color: #94a3b8; font-size: 15px; }}
+  footer {{
+    padding: 4px 34px 34px; color: #94a3b8; font-size: 13px; text-align: center;
+  }}
+</style></head>
+<body>
+<header>
+  <h1>Local AI Agent Setup — Architecture</h1>
+  <div class="sub">agent-lab · generated from live state · PII redacted</div>
+</header>
+<main>
+
+  <section>
+    <h2><span class="num">1</span>Host</h2>
+    <div class="grid">
+      <div class="fact"><b>OS</b><span>Arch Linux (rolling), systemd, KDE Plasma / Wayland</span></div>
+      <div class="fact"><b>GPU</b><span>NVIDIA discrete GPU — nvidia-open driver (low-power idle)</span></div>
+      <div class="fact"><b>User</b><span>single local user, generic host (identity redacted)</span></div>
+      <div class="fact"><b>Privilege</b><span>pkexec for elevation; no password-in-chat</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">2</span>Hermes Agent</h2>
+    <div class="grid">
+      <div class="fact"><b>Gateway</b><span>systemd <i>user</i> service with linger — survives logout, restarts cleanly</span></div>
+      <div class="fact"><b>Platform</b><span>Telegram (primary channel in/out)</span></div>
+      <div class="fact"><b>Config home</b><span><code>~/.hermes</code> — config, secrets (<code>.env</code>), state.db, kanban.db, sessions, memories, skills, scripts, cron</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">3</span>Model routing (cloud LLM APIs)</h2>
+    <ul>
+      <li><b>Single provider</b> — OpenCode Go cloud API (subscription), no local inference endpoints</li>
+      <li><b>Aliases</b> — <code>default</code> (fast/cheap) · <code>pro</code> (reasoning) · <code>code</code> (coding) · <code>glm</code> · <code>max</code> (heavy)</li>
+      <li><b>Cost discipline</b> — cheapest model that reliably completes the task; provider-independent</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="num">4</span>Daily scheduler (cron)</h2>
+    {cron_table(rows)}
+    <p class="muted" style="margin-top:10px">no-agent jobs run a script directly (zero LLM tokens); agent jobs run the LLM.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">5</span>Projects → GitHub (source of truth)</h2>
+    <div class="flow">{repo_chips(repos)}</div>
+    <p class="muted" style="margin-top:10px">Work is driven from the issue backlog; one real commit per active day beats a streak.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">6</span>Backup pipeline (encrypted)</h2>
+    <div class="flow">
+      <span class="node">~/.hermes</span><span class="arrow">→</span>
+      <span class="node">sqlite online snapshot</span><span class="arrow">→</span>
+      <span class="node">tar</span><span class="arrow">→</span>
+      <span class="node acc">gpg AES-256</span><span class="arrow">→</span>
+      <span class="node dst">~/.hermes-backups (keep 14)</span>
+    </div>
+    <p class="muted" style="margin-top:10px">Ciphertext is the only thing written to disk; passphrase lives outside the backup set.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">7</span>Security posture</h2>
+    <ul>
+      <li><b>Secrets</b> — <code>~/.hermes/.env</code> only; redaction on; never committed</li>
+      <li><b>GitHub auth</b> — <code>gh</code> CLI, token in OS keyring (outside LLM context), least-privilege scopes</li>
+      <li><b>Process safety</b> — exact-name process matching only; no broad kill patterns</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="num">8</span>Daily engineering loop</h2>
+    <div class="steps">
+      <span class="step"><b>Research</b> trends</span>
+      <span class="step"><b>Issue</b> from backlog</span>
+      <span class="step"><b>Implement</b> via coding agent</span>
+      <span class="step"><b>Test</b></span>
+      <span class="step"><b>PR</b> + review</span>
+      <span class="step"><b>Merge</b></span>
+      <span class="step"><b>Record</b> learnings</span>
+    </div>
+  </section>
+
+</main>
+<footer>No credentials, identities or host details included</footer>
+</body></html>"""
+
+
+# ---------------------------------------------------------------------------
+# Render + verify
+# ---------------------------------------------------------------------------
+
+def render(html_path, png_path):
+    subprocess.run(
+        ["chromium", "--headless=new", "--disable-gpu", "--no-sandbox",
+         "--disable-dev-shm-usage", "--hide-scrollbars",
+         "--window-size=1400,3400", f"--screenshot={png_path}",
+         f"file://{html_path}"],
+        check=True, capture_output=True, timeout=120,
+    )
+
+
+def verify(png_path):
+    from PIL import Image  # local import: only needed here
+    img = Image.open(png_path).convert("RGB")
+    w, h = img.size
+    if w < 100 or h < 100:
+        raise SystemExit(f"render looks broken: {w}x{h}")
+    # Downsample for a cheap color census (also keeps the check fast)
+    small = img.resize((max(1, w // 20), max(1, h // 20)))
+    colors = small.getcolors(maxcolors=100_000) or []
+    if len(colors) < 20:
+        raise SystemExit(f"render likely blank: only {len(colors)} distinct colors")
+    print(f"verified: {w}x{h}, {len(colors)} sampled colors")
+
+
+def crop_trailing_space(png_path, bg=(238, 241, 246), pad=28):
+    """Trim uniform page-background rows from the bottom so the PNG has no
+    dead space (the render viewport is intentionally oversized to avoid
+    clipping; this crops it back to the real content height)."""
+    from PIL import Image
+    img = Image.open(png_path).convert("RGB")
+    w, h = img.size
+    px = img.load()
+    assert px is not None, "image has no pixel data"
+
+    def row_has_content(y):
+        return any(px[x, y] != bg for x in range(0, w, 5))
+
+    bottom = h - 1
+    while bottom > 0 and not row_has_content(bottom):
+        bottom -= 1
+    new_h = min(h, bottom + 1 + pad)
+    if new_h < h:
+        img.crop((0, 0, w, new_h)).save(png_path)
+    return new_h
+
+
+def main():
+    ASSETS.mkdir(exist_ok=True)
+    rows = load_cron_jobs()
+    repos = load_repos()
+    html = build_html(rows, repos)
+
+    html_path = ASSETS / "architecture.html"
+    png_path = ASSETS / "architecture.png"
+    html_path.write_text(html)
+    render(str(html_path), str(png_path))
+    verify(str(png_path))
+    final_h = crop_trailing_space(str(png_path))
+    print(f"ok: {len(rows)} cron jobs, {len(repos)} repos -> {png_path.relative_to(REPO)} ({final_h}px)")
+
+
+if __name__ == "__main__":
+    main()

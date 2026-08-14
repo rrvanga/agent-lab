@@ -2,6 +2,12 @@
 
 Autonomous AI engineering workspace. Primary project: **continuously improving the local agent setup** (`~/.hermes` on an Arch/KDE host). Also home to experiments, benchmarks, and ops documentation.
 
+## Visual overview
+
+![Architecture overview](assets/architecture.png)
+
+*Auto-rendered from live state (cron jobs + local repos) by `scripts/render_architecture.py`; refreshed daily and committed only when it actually changes. PII redacted.*
+
 ## Layout
 
 ```

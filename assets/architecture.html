@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #eef1f6; color: #1e293b; width: 1380px; margin: 0 auto; padding: 0;
+    font-size: 17px; line-height: 1.5;
+  }
+  header {
+    background: #0f172a; color: #f8fafc; padding: 28px 34px 22px;
+  }
+  header h1 { font-size: 30px; font-weight: 700; letter-spacing: .3px; }
+  header .sub { color: #94a3b8; margin-top: 6px; font-size: 15px; }
+  main { padding: 26px 34px 40px; }
+  section {
+    background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;
+    padding: 22px 26px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(15,23,42,.05);
+  }
+  section h2 {
+    font-size: 20px; font-weight: 700; margin-bottom: 14px;
+    padding-bottom: 8px; border-bottom: 2px solid #eef1f6;
+  }
+  section h2 .num {
+    display: inline-block; width: 26px; height: 26px; line-height: 26px;
+    text-align: center; border-radius: 7px; background: #eef2ff; color: #4338ca;
+    font-size: 15px; margin-right: 9px; vertical-align: 2px;
+  }
+  .grid { display: flex; gap: 18px; flex-wrap: wrap; }
+  .fact {
+    flex: 1 1 300px; background: #f8fafc; border: 1px solid #e2e8f0;
+    border-left: 4px solid #6366f1; border-radius: 9px; padding: 14px 16px;
+  }
+  .fact b { display: block; font-size: 15px; margin-bottom: 4px; color: #334155; }
+  .fact span { color: #475569; font-size: 15px; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid #eef1f6; }
+  thead th { background: #f8fafc; color: #475569; font-weight: 600; font-size: 13px;
+              text-transform: uppercase; letter-spacing: .4px; }
+  td.t { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600;
+          color: #0f172a; white-space: nowrap; }
+  td.l { color: #64748b; white-space: nowrap; }
+  td.n { font-weight: 600; }
+  td.m { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #475569;
+          font-size: 14px; }
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12.5px;
+            font-weight: 600; white-space: nowrap; }
+  .badge.agent { background: #dbeafe; color: #1d4ed8; }
+  .badge.script { background: #dcfce7; color: #15803d; }
+  .chip {
+    display: inline-block; background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe;
+    border-radius: 999px; padding: 7px 15px; margin: 4px 6px 4px 0; font-size: 15px; font-weight: 600;
+  }
+  .flow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .node {
+    background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 9px;
+    padding: 10px 15px; font-size: 15px; font-weight: 600; color: #334155;
+  }
+  .node.acc { border-color: #818cf8; background: #eef2ff; color: #4338ca; }
+  .node.dst { border-color: #34d399; background: #ecfdf5; color: #047857; }
+  .arrow { color: #94a3b8; font-size: 20px; }
+  ul { list-style: none; }
+  li { padding: 5px 0 5px 22px; position: relative; color: #475569; font-size: 15px; }
+  li::before { content: "•"; position: absolute; left: 4px; color: #6366f1; font-weight: 700; }
+  li b { color: #334155; }
+  .steps { display: flex; flex-wrap: wrap; gap: 8px; }
+  .step {
+    background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 9px;
+    padding: 8px 13px; font-size: 14px; color: #334155;
+  }
+  .step b { color: #0f172a; }
+  .muted { color: #94a3b8; font-size: 15px; }
+  footer {
+    padding: 4px 34px 34px; color: #94a3b8; font-size: 13px; text-align: center;
+  }
+</style></head>
+<body>
+<header>
+  <h1>Local AI Agent Setup — Architecture</h1>
+  <div class="sub">agent-lab · generated from live state · PII redacted</div>
+</header>
+<main>
+
+  <section>
+    <h2><span class="num">1</span>Host</h2>
+    <div class="grid">
+      <div class="fact"><b>OS</b><span>Arch Linux (rolling), systemd, KDE Plasma / Wayland</span></div>
+      <div class="fact"><b>GPU</b><span>NVIDIA discrete GPU — nvidia-open driver (low-power idle)</span></div>
+      <div class="fact"><b>User</b><span>single local user, generic host (identity redacted)</span></div>
+      <div class="fact"><b>Privilege</b><span>pkexec for elevation; no password-in-chat</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">2</span>Hermes Agent</h2>
+    <div class="grid">
+      <div class="fact"><b>Gateway</b><span>systemd <i>user</i> service with linger — survives logout, restarts cleanly</span></div>
+      <div class="fact"><b>Platform</b><span>Telegram (primary channel in/out)</span></div>
+      <div class="fact"><b>Config home</b><span><code>~/.hermes</code> — config, secrets (<code>.env</code>), state.db, kanban.db, sessions, memories, skills, scripts, cron</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">3</span>Model routing (cloud LLM APIs)</h2>
+    <ul>
+      <li><b>Single provider</b> — OpenCode Go cloud API (subscription), no local inference endpoints</li>
+      <li><b>Aliases</b> — <code>default</code> (fast/cheap) · <code>pro</code> (reasoning) · <code>code</code> (coding) · <code>glm</code> · <code>max</code> (heavy)</li>
+      <li><b>Cost discipline</b> — cheapest model that reliably completes the task; provider-independent</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="num">4</span>Daily scheduler (cron)</h2>
+    <table><thead><tr><th>Time</th><th>Cadence</th><th>Job</th><th>Type</th><th>Mechanism</th></tr></thead><tbody><tr><td class='t'>06:30</td><td class='l'>daily</td><td class='n'>Hermes backup</td><td><span class='badge script' title='runs a script directly, zero LLM tokens'>no-agent</span></td><td class='m'>backup_hermes.sh</td></tr><tr><td class='t'>07:00</td><td class='l'>daily</td><td class='n'>Morning Brief</td><td><span class='badge agent' title='runs the LLM agent'>agent</span></td><td class='m'>morning_context.py</td></tr><tr><td class='t'>07:30</td><td class='l'>daily</td><td class='n'>Token Usage Report</td><td><span class='badge script' title='runs a script directly, zero LLM tokens'>no-agent</span></td><td class='m'>token_usage_report.py</td></tr><tr><td class='t'>08:00</td><td class='l'>daily</td><td class='n'>PC parts price watchdog</td><td><span class='badge script' title='runs a script directly, zero LLM tokens'>no-agent</span></td><td class='m'>price_watch.py</td></tr><tr><td class='t'>09:00</td><td class='l'>Mon–Fri</td><td class='n'>daily-engineering-loop</td><td><span class='badge agent' title='runs the LLM agent'>agent</span></td><td class='m'>LLM prompt</td></tr><tr><td class='t'>09:30</td><td class='l'>daily</td><td class='n'>llmcost daily update</td><td><span class='badge script' title='runs a script directly, zero LLM tokens'>no-agent</span></td><td class='m'>llmcost_update.sh</td></tr><tr><td class='t'>10:00</td><td class='l'>daily</td><td class='n'>awesome-local-ai daily drip</td><td><span class='badge script' title='runs a script directly, zero LLM tokens'>no-agent</span></td><td class='m'>awesome_drip.sh</td></tr><tr><td class='t'>10:30</td><td class='l'>Mon–Fri</td><td class='n'>til daily entry</td><td><span class='badge agent' title='runs the LLM agent'>agent</span></td><td class='m'>LLM prompt</td></tr></tbody></table>
+    <p class="muted" style="margin-top:10px">no-agent jobs run a script directly (zero LLM tokens); agent jobs run the LLM.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">5</span>Projects → GitHub (source of truth)</h2>
+    <div class="flow"><span class='chip'>agent-lab</span><span class='chip'>awesome-local-ai</span><span class='chip'>coding-interview-practice</span><span class='chip'>llmcost</span><span class='chip'>til</span></div>
+    <p class="muted" style="margin-top:10px">Work is driven from the issue backlog; one real commit per active day beats a streak.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">6</span>Backup pipeline (encrypted)</h2>
+    <div class="flow">
+      <span class="node">~/.hermes</span><span class="arrow">→</span>
+      <span class="node">sqlite online snapshot</span><span class="arrow">→</span>
+      <span class="node">tar</span><span class="arrow">→</span>
+      <span class="node acc">gpg AES-256</span><span class="arrow">→</span>
+      <span class="node dst">~/.hermes-backups (keep 14)</span>
+    </div>
+    <p class="muted" style="margin-top:10px">Ciphertext is the only thing written to disk; passphrase lives outside the backup set.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">7</span>Security posture</h2>
+    <ul>
+      <li><b>Secrets</b> — <code>~/.hermes/.env</code> only; redaction on; never committed</li>
+      <li><b>GitHub auth</b> — <code>gh</code> CLI, token in OS keyring (outside LLM context), least-privilege scopes</li>
+      <li><b>Process safety</b> — exact-name process matching only; no broad kill patterns</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="num">8</span>Daily engineering loop</h2>
+    <div class="steps">
+      <span class="step"><b>Research</b> trends</span>
+      <span class="step"><b>Issue</b> from backlog</span>
+      <span class="step"><b>Implement</b> via coding agent</span>
+      <span class="step"><b>Test</b></span>
+      <span class="step"><b>PR</b> + review</span>
+      <span class="step"><b>Merge</b></span>
+      <span class="step"><b>Record</b> learnings</span>
+    </div>
+  </section>
+
+</main>
+<footer>No credentials, identities or host details included</footer>
+</body></html>
