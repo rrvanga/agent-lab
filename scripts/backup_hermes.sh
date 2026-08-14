@@ -136,10 +136,20 @@ TIMESTAMP="$(date -u +%Y%m%d_%H%M%S)"
 NEW="hermes-backup-$TIMESTAMP.tar.gz.gpg"
 TMPOUT="$BACKUP_DIR/.incomplete-$TIMESTAMP-$$.gpg"
 
-if ! tar "${tar_args[@]}" | gpg --batch --yes --symmetric --cipher-algo AES256 \
-        --passphrase-file "$PASSFILE" --output "$TMPOUT"; then
+# GNU tar exits 1 when a file changed while being read — expected on a LIVE
+# ~/.hermes (the gateway + cron ticker write constantly). Treat only tar rc>=2
+# (fatal) or a gpg failure as a real error; suppress the benign stderr noise.
+set +e
+tar "${tar_args[@]}" 2> >(grep -v 'file changed as we read it' >&2) | \
+        gpg --batch --yes --symmetric --cipher-algo AES256 \
+        --passphrase-file "$PASSFILE" --output "$TMPOUT"
+rcs=("${PIPESTATUS[@]}")
+set -e
+tar_rc="${rcs[0]:-2}"
+gpg_rc="${rcs[1]:-2}"
+if [ "$gpg_rc" -ne 0 ] || [ "$tar_rc" -ge 2 ]; then
     rm -f -- "$TMPOUT"
-    die "backup creation failed (tar/gpg error)"
+    die "backup creation failed (tar rc=$tar_rc, gpg rc=$gpg_rc)"
 fi
 
 # --- verify the NEW backup BEFORE pruning anything ---------------------------
