@@ -8,8 +8,55 @@ set -u
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 ENV_FILE="$HERMES_HOME/.env"
 
+CHECK_REFS_ONLY=0
+[ "${1:-}" = "--check-refs-only" ] && CHECK_REFS_ONLY=1
+
+run_dead_refs_check() {
+  echo "== 4. Dead local-endpoint reference check =="
+  REF_BAD=0
+  for FILE in "$ENV_FILE" "$HERMES_HOME/config.yaml"; do
+    [ -f "$FILE" ] || continue
+    while IFS= read -r line; do
+      printf '%s' "$line" | grep -qE '^[[:space:]]*(#.*)?$' && continue
+      if [ "$FILE" = "$ENV_FILE" ]; then
+        KEY="${line%%=*}"
+        case "$KEY" in
+          HERMES_CUSTOM_LOCALHOST_11434_API_KEY|HERMES_CUSTOM_LOCALHOST_4000_API_KEY)
+            echo "  dead: .env key $KEY"
+            REF_BAD=1
+            ;;
+        esac
+        VALUE="${line#*=}"
+        VALUE="${VALUE%%#*}"
+        if printf '%s' "$VALUE" | grep -qE '[^0-9]:(11434|4000)([^0-9]|$)'; then
+          echo "  dead: .env key $KEY"
+          REF_BAD=1
+        fi
+      else
+        LINE="${line%%#*}"
+        if printf '%s' "$LINE" | grep -qE '[^0-9]:(11434|4000)([^0-9]|$)'; then
+          KEYWORD=$(printf '%s' "$LINE" | sed -e 's/^[[:space:]]*//' -e 's/^-*[[:space:]]*//' -e 's/:.*//' -e 's/[[:space:]].*//')
+          echo "  dead: config key $KEYWORD"
+          REF_BAD=1
+        fi
+      fi
+    done < "$FILE"
+  done
+  if [ "$REF_BAD" = "1" ]; then
+    echo "fix: remove these dead entries"
+    exit 1
+  fi
+  echo "dead-endpoint check: clean"
+}
+
+if [ "$CHECK_REFS_ONLY" = "1" ]; then
+  run_dead_refs_check
+  exit
+fi
+
 echo "== 1. .env inline-comment check (the 2026-08-11 bug) =="
 BAD=0
+[ -f "$ENV_FILE" ] || { echo "  SKIP: $ENV_FILE not found."; exit 1; }
 while IFS= read -r line; do
   case "$line" in
     ''|\#*) continue ;;   # skip blank lines and full-line comments
@@ -21,7 +68,11 @@ while IFS= read -r line; do
     BAD=1
   fi
 done < "$ENV_FILE"
-[ "$BAD" = "0" ] && echo "  OK: no inline comments."
+if [ "$BAD" = "1" ]; then
+  echo "  FIX REQUIRED: resolve the inline comments above, then re-run."
+  exit 1
+fi
+echo "  OK: no inline comments."
 
 echo "== 2. LLM endpoint probe (key never printed) =="
 BASE_URL=$(grep -E '^OPENCODE_GO_BASE_URL=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"' | tr -d ' ')
@@ -45,3 +96,5 @@ fi
 
 echo "== 3. hermes doctor =="
 hermes doctor 2>&1 | tail -20 || true
+
+run_dead_refs_check
