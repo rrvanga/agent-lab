@@ -14,9 +14,11 @@ CHECK_REFS_ONLY=0
 run_dead_refs_check() {
   echo "== 4. Dead local-endpoint reference check =="
   REF_BAD=0
+  SCANNED=0
   for FILE in "$ENV_FILE" "$HERMES_HOME/config.yaml"; do
     [ -f "$FILE" ] || continue
-    while IFS= read -r line; do
+    SCANNED=$((SCANNED + 1))
+    while IFS= read -r line || [ -n "$line" ]; do
       printf '%s' "$line" | grep -qE '^[[:space:]]*(#.*)?$' && continue
       if [ "$FILE" = "$ENV_FILE" ]; then
         KEY="${line%%=*}"
@@ -28,13 +30,13 @@ run_dead_refs_check() {
         esac
         VALUE="${line#*=}"
         VALUE="${VALUE%%#*}"
-        if printf '%s' "$VALUE" | grep -qE '[^0-9]:(11434|4000)([^0-9]|$)'; then
+        if printf '%s' "$VALUE" | grep -qE '(localhost|127\.0\.0\.1):(11434|4000)([^0-9]|$)'; then
           echo "  dead: .env key $KEY"
           REF_BAD=1
         fi
       else
         LINE="${line%%#*}"
-        if printf '%s' "$LINE" | grep -qE '[^0-9]:(11434|4000)([^0-9]|$)'; then
+        if printf '%s' "$LINE" | grep -qE '(localhost|127\.0\.0\.1):(11434|4000)([^0-9]|$)'; then
           KEYWORD=$(printf '%s' "$LINE" | sed -e 's/^[[:space:]]*//' -e 's/^-*[[:space:]]*//' -e 's/:.*//' -e 's/[[:space:]].*//')
           echo "  dead: config key $KEYWORD"
           REF_BAD=1
@@ -42,6 +44,12 @@ run_dead_refs_check() {
       fi
     done < "$FILE"
   done
+  if [ "$SCANNED" = "0" ]; then
+    echo "  SKIP: no scan targets found ($ENV_FILE / config.yaml missing)"
+    if [ "$CHECK_REFS_ONLY" = "1" ]; then
+      exit 1
+    fi
+  fi
   if [ "$REF_BAD" = "1" ]; then
     echo "fix: remove these dead entries"
     exit 1
@@ -57,7 +65,7 @@ fi
 echo "== 1. .env inline-comment check (the 2026-08-11 bug) =="
 BAD=0
 [ -f "$ENV_FILE" ] || { echo "  SKIP: $ENV_FILE not found."; exit 1; }
-while IFS= read -r line; do
+while IFS= read -r line || [ -n "$line" ]; do
   case "$line" in
     ''|\#*) continue ;;   # skip blank lines and full-line comments
   esac
