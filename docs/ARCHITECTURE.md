@@ -26,7 +26,7 @@
 | code | kimi-k2.7-code | opencode-go | /model alias |
 | glm | glm-5.2 | opencode-go | /model alias |
 | max | qwen3.8-max | opencode-go | /model alias |
-| (aux) | glm-5 | auto-routed | compression/titles; `smart_model_routing` config key is **vestigial** (no logic) |
+| (aux) | glm-5 | auto-routed | compression/titles |
 
 - Local inference endpoints (ollama :11434, litellm :4000) were **removed** in the 2026-08-11 cleanup — any config references to them are dead and should be purged (see backlog).
 - LiteLLM parked at :4000 — **removed**, do not resurrect.
@@ -58,7 +58,6 @@ Scripts live in `~/.hermes/scripts/`: `morning_context.py`, `token_usage_report.
 
 1. Dead provider references: config may still list ollama/litellm endpoints (removed) — purge & verify config with `validate-config.sh`
 2. No automated backup of `~/.hermes` (state.db, kanban.db) — crash = data loss
-3. `smart_model_routing` key is vestigial — remove or implement
-4. No update policy for Hermes itself (rolling Arch; hermes-agent source checkout at `~/.hermes/hermes-agent`)
-5. Overnight power management not yet automated (rtcwake available; firmware wake-from-S5 untested)
-6. Deals-monitor design approved but not built (r/bapcsalescanada RSS, craigslist jsonsearch, canadacomputers verified sources)
+3. No update policy for Hermes itself (rolling Arch; hermes-agent source checkout at `~/.hermes/hermes-agent`)
+4. Overnight power management not yet automated (rtcwake available; firmware wake-from-S5 untested)
+5. Deals-monitor design approved but not built (r/bapcsalescanada RSS, craigslist jsonsearch, canadacomputers verified sources)
