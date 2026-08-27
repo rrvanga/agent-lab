@@ -65,11 +65,11 @@ procedure below is therefore always run by a human, manually.
    ```
    hermes update --check
    → Fetching from origin...
-   ⚕ Update available: 808 commits behind origin/main.
+   ⚕ Update available: 1404 commits behind origin/main.
      Run 'hermes update' to install.
    ```
 
-   (On 2026-08-24 the checkout was 808 commits behind.) `→ Fetching...` shows
+   (On 2026-08-26 the checkout was 1404 commits behind.) `→ Fetching...` shows
    the remote is reachable; the `⚕` line is the real answer. Nothing upstream
    worth taking? Defer — see policy above.
 
@@ -96,11 +96,12 @@ procedure below is therefore always run by a human, manually.
 
    ```
    bash scripts/backup_hermes.sh
-   # backup OK: hermes-backup-20260824_150000.tar.gz.gpg (63.1 MB, 14 kept)
+   # backup OK: hermes-backup-20260827_045336.tar.gz.gpg (216.8 MB, 10 kept)
    ```
 
    The encrypted archive lives in `~/.hermes-backups/` and excludes the git
-   checkout and caches; full restore procedure is in `docs/backup.md`.
+   checkout and caches; full restore procedure is in `docs/backup.md`. (The
+   timestamp is UTC; size and kept-count vary per run.)
 
 ## Performing the update
 
@@ -199,19 +200,32 @@ If the update broke something, in this order:
 ## Troubleshooting
 
 - **`ERROR: fetch failed`** (SSH/network): the remote was unreachable. Fetch
-  manually and check the SSH agent:
+  manually — the fetch is the real check:
 
   ```
   git -C ~/.hermes/hermes-agent fetch origin main
-  ssh-add -l     # must list the hermes deploy key
   ```
 
-- **`ERROR: update interrupted, working tree dirty`**: `git -C
-  ~/.hermes/hermes-agent status --short` shows parked changes and
-  `git -C ~/.hermes/hermes-agent stash list` shows the stash. Re-run
-  `hermes update --yes` (it re-applies the stash) or `git stash pop` to finish
-  the interrupted update. Do **not** run a second update against a dirty tree
-  without resolving the stash first.
+  If that succeeds, SSH is fine. Only if you use an ssh-agent should
+  `ssh-add -l` list the deploy key; with no agent running (this host's normal
+  state), skip the agent check.
+
+- **`hermes update` auto-stashes local changes**: it does **not** error on
+  uncommitted changes. It auto-stashes them before pulling
+  (`git stash push --include-untracked -m "hermes-update-autostash-<UTC timestamp>"`),
+  preceded by the printed line
+  `→ Local changes detected — stashing before update...`, then re-applies the
+  stash after the update by default. With `--keep-stash` it leaves the stash
+  parked and prints
+  `ℹ️  Local changes were stashed before updating and were NOT re-applied (--keep-stash).`
+  plus `Restore manually with: git stash apply <ref>`.
+- Real hazard: an update killed mid-run can leave a parked
+  `hermes-update-autostash-*` entry. Procedure: check
+  `git -C ~/.hermes/hermes-agent stash list`, inspect
+  `git -C ~/.hermes/hermes-agent stash show -p stash@{0}`, then re-apply with
+  `git -C ~/.hermes/hermes-agent stash apply stash@{0}` (or `stash pop` once the
+  apply is confirmed clean). Do not run another update while an autostash entry
+  sits unexamined.
 
 - **`ERROR: gateway fails to start after update`**: read the service log first:
 
