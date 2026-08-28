@@ -17,6 +17,9 @@ is always a human, manual action.
 - **Version line** (captured 2026-08-24):
   `Hermes Agent v0.20.4 (2026.8.18) · upstream 057dcdf2 · local 8794e5a2 (+22268 carried commits)`
   — Python 3.11.15, OpenAI SDK 2.24.0, install dir `~/.hermes/hermes-agent`.
+  (Line format changed in v0.20.6, updated 2026-08-27: the `· local <sha>
+  (+N carried commits)` field is no longer printed — the line now ends at
+  `· upstream <sha>`, e.g. `Hermes Agent v0.20.6 (2026.8.27) · upstream 99c3cad8`.)
 - **Virtualenv**: `~/.hermes/hermes-agent/venv` (owns `bin/pip`,
   `bin/python3.11`).
 - **`hermes update`** is the update driver. Verbatim purpose: *"Pull the latest
@@ -69,9 +72,11 @@ procedure below is therefore always run by a human, manually.
      Run 'hermes update' to install.
    ```
 
-   (On 2026-08-26 the checkout was 1404 commits behind.) `→ Fetching...` shows
-   the remote is reachable; the `⚕` line is the real answer. Nothing upstream
-   worth taking? Defer — see policy above.
+   (On 2026-08-26 the checkout was 1404 commits behind; on 2026-08-28, after
+   the 08-27 update to v0.20.6, it was 121 behind — the count varies as
+   upstream moves.) `→ Fetching...` shows the remote is reachable; the `⚕`
+   line is the real answer. Nothing upstream worth taking? Defer — see policy
+   above.
 
 2. Verify the known-good config backup is present and fresh:
 
@@ -137,7 +142,8 @@ Notes:
    hermes --version
    ```
 
-   The `· local <sha>` value should now point at a newer upstream commit.
+   Expect a newer build date and `· upstream <sha>` than the captured version
+   line above (the `· local <sha>` field was dropped from the line in v0.20.6).
 
 2. Gateway is running:
 
@@ -199,8 +205,13 @@ If the update broke something, in this order:
 
 ## Troubleshooting
 
-- **`ERROR: fetch failed`** (SSH/network): the remote was unreachable. Fetch
-  manually — the fetch is the real check:
+- **`✗ Failed to fetch updates from origin.`** (SSH/network): the remote was
+  unreachable. The same code path prints the diagnosis variants
+  `✗ Network error — cannot reach the remote repository.` /
+  `✗ Authentication failed — check your git credentials or SSH key.`
+  (also: `✗ GitHub is rate limiting requests or having an outage (HTTP 429)`
+  and `✗ GitHub appears to be having an outage — try again in a few minutes`).
+  Fetch manually — the fetch is the real check:
 
   ```
   git -C ~/.hermes/hermes-agent fetch origin main
@@ -227,7 +238,7 @@ If the update broke something, in this order:
   apply is confirmed clean). Do not run another update while an autostash entry
   sits unexamined.
 
-- **`ERROR: gateway fails to start after update`**: read the service log first:
+- **Gateway does not start after update**: read the service log first:
 
   ```
   journalctl --user -u hermes-gateway -n 50
