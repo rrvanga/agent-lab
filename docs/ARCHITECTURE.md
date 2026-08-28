@@ -60,4 +60,3 @@ Scripts live in `~/.hermes/scripts/`: `morning_context.py`, `token_usage_report.
 2. No automated backup of `~/.hermes` (state.db, kanban.db) — crash = data loss
 3. No update policy for Hermes itself (rolling Arch; hermes-agent source checkout at `~/.hermes/hermes-agent`)
 4. Overnight power management not yet automated (rtcwake available; firmware wake-from-S5 untested)
-5. Deals-monitor design approved but not built (r/bapcsalescanada RSS, craigslist jsonsearch, canadacomputers verified sources)
