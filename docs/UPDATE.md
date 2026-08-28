@@ -17,9 +17,14 @@ is always a human, manual action.
 - **Version line** (captured 2026-08-24):
   `Hermes Agent v0.20.4 (2026.8.18) · upstream 057dcdf2 · local 8794e5a2 (+22268 carried commits)`
   — Python 3.11.15, OpenAI SDK 2.24.0, install dir `~/.hermes/hermes-agent`.
-  (Line format changed in v0.20.6, updated 2026-08-27: the `· local <sha>
-  (+N carried commits)` field is no longer printed — the line now ends at
-  `· upstream <sha>`, e.g. `Hermes Agent v0.20.6 (2026.8.27) · upstream 99c3cad8`.)
+  (The `· local <sha> (+N carried commits)` field is CONTEXT-DEPENDENT, not a
+  version change: it prints whenever the checkout is AHEAD of origin/main — the
+  normal carried-commits state on this host (e.g. `· local 8794e5a2
+  (+22268 carried commits)`) — and is omitted only when the checkout is at or
+  behind upstream. A captured line ending at `· upstream <sha>` with no local
+  field was a transient at-behind state, not a new format. Verified 2026-08-28
+  on v0.20.6: `Hermes Agent v0.20.6 (2026.8.27) · upstream 7b5e1911 · local
+  99c3cad8 (+25351 carried commits)`.)
 - **Virtualenv**: `~/.hermes/hermes-agent/venv` (owns `bin/pip`,
   `bin/python3.11`).
 - **`hermes update`** is the update driver. Verbatim purpose: *"Pull the latest
@@ -35,7 +40,7 @@ is always a human, manual action.
   `~/.config/systemd/user/hermes-gateway.service`, enabled). `ExecStart` =
   `~/.hermes/hermes-agent/venv/bin/python -m hermes_cli.main gateway run`,
   `WorkingDirectory=~/.hermes`, `HERMES_HOME=~/.hermes`; `Restart=always`,
-  `KillMode=mixed`, `KillSignal=SIGTERM`, `TimeoutStopSec=60`,
+  `KillMode=mixed`, `KillSignal=SIGTERM`, `TimeoutStopSec=70`,
   `ExecReload=/bin/kill -USR1 $MAINPID`, `ExecStopPost` runs
   `gateway.cgroup_cleanup`. The gateway hosts messaging integrations
   (e.g. Telegram) **and** spawns child agent processes (e.g. kanban workers); a
@@ -143,7 +148,9 @@ Notes:
    ```
 
    Expect a newer build date and `· upstream <sha>` than the captured version
-   line above (the `· local <sha>` field was dropped from the line in v0.20.6).
+   line above — with the `· local <sha> (+N carried commits)` field expected
+   whenever the checkout runs ahead of origin/main (this host's normal state);
+   its absence is not an anomaly.
 
 2. Gateway is running:
 
