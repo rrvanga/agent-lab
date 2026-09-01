@@ -116,8 +116,12 @@ and deliberate.
    sudo scripts/nightly-shutdown.sh --shutdown
    ```
 
-   It re-checks the window and wake time, arms the alarm, logs intent, and
-   powers off. Verify the machine is back before 07:00.
+   It re-checks the window and wake time, arms the alarm with 'rtcwake -m no'
+   (arm-only — the machine stays on), re-verifies the alarm from the wakealarm
+   sysfs, then powers off explicitly; verification happens BEFORE the poweroff.
+   After poweroff the RTC alarm stays armed through S5; the RTC wake alarm is
+   one-shot and is cleared when it fires (or is re-armed/cleared on next boot),
+   so no stale re-wake occurs. Verify the machine is back before 07:00.
 
 4. **Stage 4 — acceptance.** Over one week, no 07:00 Morning Brief may be
    missed. Only after that should any timer be added to make this automatic.

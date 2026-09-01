@@ -87,7 +87,9 @@ export RTC_SYSFS="$RTC_DIR"
 export MOCK_LOG="$MOCK_LOG"
 run_nightly --shutdown
 rc=$?
-if [ "$rc" -eq 0 ] && grep -q 'systemctl poweroff' "$MOCK_LOG" && grep -q 'rtcwake -m off' "$MOCK_LOG"; then
+rtc_line=$(awk '/rtcwake -m no/{print NR; exit}' "$MOCK_LOG")
+pow_line=$(awk '/systemctl poweroff/{print NR; exit}' "$MOCK_LOG")
+if [ "$rc" -eq 0 ] && [ -n "$rtc_line" ] && [ -n "$pow_line" ] && [ "$rtc_line" -lt "$pow_line" ]; then
     echo "PASS: T2 shutdown-ok"
 else
     echo "FAIL: T2 shutdown-ok (rc=$rc)"
@@ -149,6 +151,39 @@ if [ "$rc" -ne 0 ] && ! grep -q 'systemctl poweroff' "$MOCK_LOG"; then
     echo "PASS: T6 wake-too-far"
 else
     echo "FAIL: T6 wake-too-far (rc=$rc)"
+    fails=$((fails + 1))
+fi
+
+# T7 reversed-window-refused: 02:00..22:00 is a 20h window (> MAX_WINDOW_HOURS)
+# -> config refusal (exit 2); no poweroff and no rtcwake line in the mock log.
+reset_state
+export FAKE_NOW="2026-08-31 15:00"
+export NIGHT_START=02:00
+export NIGHT_END=22:00
+export RTC_SYSFS="$RTC_DIR"
+export MOCK_LOG="$MOCK_LOG"
+run_nightly --shutdown
+rc=$?
+if [ "$rc" -eq 2 ] && ! grep -q 'poweroff' "$MOCK_LOG" && ! grep -q 'rtcwake' "$MOCK_LOG"; then
+    echo "PASS: T7 reversed-window-refused"
+else
+    echo "FAIL: T7 reversed-window-refused (rc=$rc)"
+    fails=$((fails + 1))
+fi
+unset NIGHT_START NIGHT_END 2>/dev/null || true
+
+# T8 early-morning-no-rollover: 00:30 is inside 22:00..02:00, wake 06:45
+# resolves to the SAME day (the +86400 branch must NOT trigger) -> powers off.
+reset_state
+export FAKE_NOW="2026-08-31 00:30"
+export RTC_SYSFS="$RTC_DIR"
+export MOCK_LOG="$MOCK_LOG"
+run_nightly --shutdown
+rc=$?
+if [ "$rc" -eq 0 ] && grep -q 'systemctl poweroff' "$MOCK_LOG"; then
+    echo "PASS: T8 early-morning-no-rollover"
+else
+    echo "FAIL: T8 early-morning-no-rollover (rc=$rc)"
     fails=$((fails + 1))
 fi
 

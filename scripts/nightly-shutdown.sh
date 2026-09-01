@@ -13,6 +13,7 @@ set -u
 WAKE_TIME=${WAKE_TIME:-06:45}
 NIGHT_START=${NIGHT_START:-22:00}
 NIGHT_END=${NIGHT_END:-02:00}
+MAX_WINDOW_HOURS=12  # maximum overnight window length in hours; guards against reversed start/end config
 RTC_SYSFS=${RTC_SYSFS:-/sys/class/rtc/rtc0}
 FAKE_NOW=${FAKE_NOW:-}
 
@@ -59,6 +60,21 @@ in_night_window() {
     start=$((10#${NIGHT_START//:/}))
     end=$((10#${NIGHT_END//:/}))
     [ "$now" -ge "$start" ] || [ "$now" -lt "$end" ]
+}
+
+validate_window_config() {
+    local start end len
+    start=$((10#${NIGHT_START//:/}))
+    end=$((10#${NIGHT_END//:/}))
+    if [ "$start" -le "$end" ]; then
+        len=$(( (end - start) / 100 ))
+    else
+        len=$(( (2400 - start + end) / 100 ))
+    fi
+    if [ "$start" -eq "$end" ] || [ "$len" -gt "$MAX_WINDOW_HOURS" ] || [ "$len" -le 0 ]; then
+        echo "nightly-shutdown: invalid night window NIGHT_START=$NIGHT_START NIGHT_END=$NIGHT_END (length ${len}h > max ${MAX_WINDOW_HOURS}h or degenerate); refusing to run" >&2
+        exit 2
+    fi
 }
 
 # Return 0 if WAKE_TIME is a valid HH:MM in 00:00..23:59.
@@ -188,8 +204,9 @@ cmd_shutdown() {
         exit 1
     fi
     epoch=$(wake_epoch 12) || exit 1
-    # Guard (d): arm the RTC alarm and confirm the kernel accepted it.
-    if ! set_alarm off "$epoch"; then
+    # Guard (d): arm the RTC alarm only (rtcwake -m no never powers off; the
+    # machine stays on) and confirm the kernel accepted it.
+    if ! set_alarm no "$epoch"; then
         log "rtcwake failed; machine stays on"
         exit 1
     fi
@@ -197,7 +214,7 @@ cmd_shutdown() {
         log "wakealarm not accepted; machine stays on"
         exit 1
     fi
-    # Guard (e): record intent, then power off.
+    # Guard (e): record intent, then power off explicitly.
     log "armed: wake $WAKE_TIME (epoch $epoch)"
     if ! systemctl poweroff; then
         log "systemctl poweroff failed; machine stays on"
@@ -205,6 +222,8 @@ cmd_shutdown() {
     fi
     exit 0
 }
+
+validate_window_config
 
 case "${1:-}" in
     '')
