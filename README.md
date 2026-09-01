@@ -11,11 +11,12 @@ Autonomous AI engineering workspace. Primary project: **continuously improving t
 ## Layout
 
 ```
-docs/ARCHITECTURE.md   # the current setup, mapped (understand before changing)
-docs/MISSION.md        # the operating charter (verbatim)
-docs/DAILY_LOOP.md     # the daily Research → Issue → Implement → Test → Commit → Push loop
-scripts/               # deployed cron/ops scripts (source of truth; deployed to ~/.hermes/scripts/)
-SECURITY.md            # secrets policy
+docs/ARCHITECTURE.md          # the current setup, mapped (understand before changing)
+docs/MISSION.md               # the operating charter (verbatim)
+docs/DAILY_LOOP.md            # the daily Research → Issue → Implement → Test → Commit → Push loop
+docs/AI_ENGINEERING_TRENDS.md # 2025-2026 agentic AI trends reference (sources verified 2026-09-01)
+scripts/                      # deployed cron/ops scripts (source of truth; deployed to ~/.hermes/scripts/)
+SECURITY.md                   # secrets policy
 ```
 
 ## Operating principles
