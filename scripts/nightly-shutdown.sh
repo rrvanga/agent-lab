@@ -75,6 +75,12 @@ validate_window_config() {
         echo "nightly-shutdown: invalid night window NIGHT_START=$NIGHT_START NIGHT_END=$NIGHT_END (length ${len}h > max ${MAX_WINDOW_HOURS}h or degenerate); refusing to run" >&2
         exit 2
     fi
+    # The window must span midnight (evening start, early-morning end): the
+    # in-window predicate is an OR union that is only correct for start>end.
+    if [ "$start" -le "$end" ]; then
+        echo "nightly-shutdown: invalid night window NIGHT_START=$NIGHT_START NIGHT_END=$NIGHT_END (window must span midnight: NIGHT_START must be > NIGHT_END); refusing to run" >&2
+        exit 2
+    fi
 }
 
 # Return 0 if WAKE_TIME is a valid HH:MM in 00:00..23:59.

@@ -187,6 +187,25 @@ else
     fails=$((fails + 1))
 fi
 
+# T9 same-day-window-refused: 02:00..14:00 does not span midnight; the
+# in-window OR predicate would otherwise cover all 24h -> config refusal (exit
+# 2); no poweroff and no rtcwake line in the mock log.
+reset_state
+export FAKE_NOW="2026-09-01 15:00"
+export NIGHT_START=02:00
+export NIGHT_END=14:00
+export RTC_SYSFS="$RTC_DIR"
+export MOCK_LOG="$MOCK_LOG"
+run_nightly --shutdown
+rc=$?
+if [ "$rc" -eq 2 ] && ! grep -q 'poweroff' "$MOCK_LOG" && ! grep -q 'rtcwake' "$MOCK_LOG"; then
+    echo "PASS: T9 same-day-window-refused"
+else
+    echo "FAIL: T9 same-day-window-refused (rc=$rc)"
+    fails=$((fails + 1))
+fi
+unset NIGHT_START NIGHT_END 2>/dev/null || true
+
 if [ "$fails" -eq 0 ]; then
     echo "ALL TESTS PASSED"
     exit 0
