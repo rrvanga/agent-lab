@@ -5,11 +5,12 @@
 
 ## Executive Summary
 
-Agentic AI crossed the line from prototype pattern to production discipline between late 2024 and 2026. Three structural shifts define the period:
+Agentic AI crossed the line from prototype pattern to production discipline between late 2024 and 2026. Four structural shifts define the period:
 
 1. **A canonical taxonomy replaced folklore.** Anthropic's "workflows vs. agents" split — workflows orchestrate LLM/tool calls through *predefined code paths*, agents let an LLM *dynamically direct* its own process and tool use — became the field's shared vocabulary, along with five named production workflow patterns and the agent-loop patterns (ReAct, Reflection/Reflexion) that preceded them.
 2. **The backend standardized.** Two open standards now anchor the stack: **Model Context Protocol (MCP)** for tool integration — donated to the Linux Foundation's new **Agentic AI Foundation** in Dec 2025, with 247 member organizations by Aug 2026 — and **OpenTelemetry** as the tracing substrate (its GenAI semantic conventions still *Development*-status as of 2026-09-01). Orchestration is coalescing around graph runtimes (LangGraph) and framework-agnostic managed platforms (LangSmith Deployment, AWS AgentCore, Gemini Enterprise Agent Platform).
 3. **Cost and evaluation became engineering controls.** FinOps Foundation reports 98% of organizations now manage AI spend (up from 31% two years prior). "Tokens meter AI like kWh meter electricity," and a token quota is simultaneously a financial control and an engineering control. Evaluation shifted from grading the model to **testing the system, not the model** — trace/path assertions over outcome-only scoring.
+4. **The discipline became teachable (the people layer).** By Sept 2026 the canonical patterns above had been commoditized into installable skills and cohort courses — flagship **Matt Pocock's AI Hero** (creator of Total TypeScript turned full-time AI-engineering educator; self-reported 113,800+ learners, 8,500+ cohort-trained, 25 free installable skills). When a discipline condenses into teachable artifacts it has crossed the adoption chasm — and "web developer → AI engineer" became the era's retraining wave.
 
 The practical through-line across all four research areas: **start simple, verify at every step, and only add agentic complexity where it demonstrably improves outcomes.** Multi-agent systems consume ~15× the tokens of plain chat (agents ~4×); the complexity must earn its keep.
 
@@ -120,6 +121,15 @@ Anthropic's guidance is consistent and worth quoting as policy: find the simples
 - Enforce the FinOps discipline already in place here: spending caps + step limits on agent loops and cron-driven agents; audit the model-routing layer periodically (a discount on the wrong model is not a saving).
 - Treat the existing MOA review gate as the repo's system-level eval; add trace assertions for the cheap, high-signal agent paths (tool calls, step counts, cost per run) before adding more agentic complexity.
 
+## The Skills Landscape (the people layer)
+
+- **The retail signal.** By 2026-09-01 the discipline documented above crossed the adoption chasm in the education market: enterprise patterns are being commoditized into *installable skills* — one-command setup, AGENTS.md-driven, structurally identical to this repo's SKILL.md model — and cohort courses for working developers. When a discipline condenses into teachable artifacts, it has stabilized.
+- **Flagship: Matt Pocock's AI Hero** *(verified 2026-09-01 from totaltypescript.com / mattpocock.com / aihero.dev — publisher figures)*: the creator of **Total TypeScript** (industry-standard TS course), ex-XState core team and Vercel developer advocate, now an AI-engineering educator full-time. AI Hero = "the engineering process for working with coding agents, from an idea to shipped, reviewed code" — the same idea→ship spine this repo's own workflow uses.
+- **Self-reported scale**: 113,800+ developers learning, 8,500+ trained in cohorts, 25 free skills — all marked `[unverified]` per this document's convention (publisher figures).
+- **The curriculum mirrors this doc's findings**: `/to-spec → /to-tickets → /implement → /code-review` (prompt chaining + evaluator-optimizer as a named main flow); `/grill-with-docs`, `/research`, `/wayfinder` (routing/parallelization/orchestrator-workers); a complete **AGENTS.md guide**, plan-mode intro, "never run `/init`" (context discipline — cf. the Claude Code best-practices loop notes above); **TDD as a first-class skill** (cf. runnable checks in the loop discipline); **AFK agents** ("Ralph") = bounded autonomy, the only documented path in the Agentic FinOps section above.
+- **The cohort course "AI Coding for Real Engineers"** *(waitlist, 2026-09-01)*: two weeks covering context gathering, planning, steering, feedback loops, AFK agents, and **human-in-the-loop review** — the orchestration section's HITL pattern, as a course outline. "Trained in cohorts: 8,500+" — the retraining wave is measurable.
+- **What it signals for this repo**: (1) the SKILL.md/AGENTS.md pattern is industry-validated — skills are the emerging distribution format for agent-workflow knowledge; (2) the bottleneck has moved from *knowing the tools* to *engineering with agents* — which is exactly what the emergent courses teach; (3) creators are a legitimate trend-signal source — the education layer reports where the field's trajectory is *adopted*, not just where vendors push it.
+
 ## Sources
 
 Patterns & agents:
@@ -133,3 +143,6 @@ Orchestration:
 
 Production (observability / FinOps / evals):
 - https://raw.githubusercontent.com/open-telemetry/semantic-conventions-genai/main/docs/gen-ai/README.md · https://github.com/open-telemetry/semantic-conventions-genai · https://langfuse.com/docs · https://docs.arize.com/phoenix/ · https://docs.openlit.io/ · https://docs.smith.langchain.com/ · https://www.braintrust.dev/docs · https://www.finops.org/insights/finops-tokenomics-fit-together/ · https://www.finops.org/insights/setting-ai-budget/ · https://www.finops.org/insights/agentic-finops-adoption/ · https://www.promptfoo.dev/docs/guides/evaluate-coding-agents/ · https://www.promptfoo.dev/docs/configuration/rate-limits/ · https://www.promptfoo.dev/docs/configuration/caching/ · https://deepeval.com/
+
+Skills & learning landscape:
+- https://www.totaltypescript.com/ · https://mattpocock.com/ · https://www.aihero.dev/
