@@ -15,6 +15,7 @@ Research → Issue → Implement → Test → Branch+PR → Review → Merge →
 5. **PR workflow:**
    - Push the branch, open a PR via `gh pr create --fill`
    - **Review gate (MOA):** route the diff through the Mixture-of-Agents preset — `hermes chat -Q -q "<review prompt with diff>" -m moa:default` (fan-out: deepseek-v4-pro + glm-5.2 → qwen3.8-max aggregator). Address findings; iterate until clean
+     - The gate takes 10+ min; start it in the background (`> /tmp/moa_review.out 2>&1 &`) and poll the **output file** — the terminal wrapper may report the process as "exited" with 0 bytes within ~10–40s while the orphaned `hermes chat` child is still running. Do NOT relaunch on the wrapper's early "exited" status: verify with `pgrep -af 'hermes chat'` first, snapshot the output file as soon as it holds a trailing `session_id:` line, and treat ONLY that complete verdict as authoritative (a partial file is not a verdict)
    - Merge via `gh pr merge --squash` (or `--delete-branch`); never push straight to `main`
 6. **Update the issue** (objective/approach/acceptance criteria); close when done
 7. **Record:** notes in `docs/notes/` — what worked, what failed, what was learned
