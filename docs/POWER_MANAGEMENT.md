@@ -56,11 +56,13 @@ NIGHT_END=02:00        # allowed shutdown window end (spans midnight)
 RTC_SYSFS=/sys/class/rtc/rtc0
 ```
 
-The night window **must span midnight**: `NIGHT_START` must be later than
-`NIGHT_END` (evening start, early-morning end, crossing midnight). Same-day
-windows (`NIGHT_START <= NIGHT_END`, e.g. `02:00..14:00`) are refused by
-design (`exit 2`) because the in-window predicate is only correct for
-midnight-spanning windows.
+The night window **must span midnight** and **must start at or after 20:00**:
+`NIGHT_START` must be later than `NIGHT_END` (evening start, early-morning end,
+crossing midnight). A start before 20:00 (e.g. `12:00..00:00`) is refused with
+`exit 2` because it would put daytime hours "in window" and allow a daytime
+poweroff. Same-day windows (`NIGHT_START <= NIGHT_END`, e.g. `02:00..14:00`)
+are also refused by design (`exit 2`) because the in-window predicate is only
+correct for midnight-spanning windows.
 
 `FAKE_NOW="YYYY-MM-DD HH:MM"` is a test hook that replaces `date` for every
 "now" computation (and bypasses the root check); it is used by the harness and
