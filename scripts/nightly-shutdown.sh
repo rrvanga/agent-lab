@@ -62,8 +62,29 @@ in_night_window() {
     [ "$now" -ge "$start" ] || [ "$now" -lt "$end" ]
 }
 
+# Return 0 if $1 is a valid HH:MM in 00:00..23:59 (same pattern as
+# validate_wake_time).
+valid_hhmm() {
+    local value hh mm
+    value="$1"
+    case "$value" in
+        [0-2][0-9]:[0-5][0-9])
+            hh=$((10#${value%%:*}))
+            mm=$((10#${value##*:}))
+            [ "$hh" -le 23 ] && [ "$mm" -le 59 ]
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
 validate_window_config() {
     local start end len
+    if ! valid_hhmm "$NIGHT_START" || ! valid_hhmm "$NIGHT_END"; then
+        echo "nightly-shutdown: invalid night window NIGHT_START=$NIGHT_START NIGHT_END=$NIGHT_END (must be HH:MM in 00:00..23:59); refusing to run" >&2
+        exit 2
+    fi
     start=$((10#${NIGHT_START//:/}))
     end=$((10#${NIGHT_END//:/}))
     if [ "$start" -le "$end" ]; then
@@ -79,6 +100,13 @@ validate_window_config() {
     # in-window predicate is an OR union that is only correct for start>end.
     if [ "$start" -le "$end" ]; then
         echo "nightly-shutdown: invalid night window NIGHT_START=$NIGHT_START NIGHT_END=$NIGHT_END (window must span midnight: NIGHT_START must be > NIGHT_END); refusing to run" >&2
+        exit 2
+    fi
+    # The window must start at or after 20:00: an earlier start (e.g.
+    # 12:00..00:00) would put daytime hours "in window" and permit a daytime
+    # poweroff, so such configs are refused.
+    if [ "$start" -lt 2000 ]; then
+        echo "nightly-shutdown: invalid night window NIGHT_START=$NIGHT_START (window must start at or after 20:00; earlier starts would permit a daytime poweroff); refusing to run" >&2
         exit 2
     fi
 }

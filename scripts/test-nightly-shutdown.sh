@@ -206,6 +206,81 @@ else
 fi
 unset NIGHT_START NIGHT_END 2>/dev/null || true
 
+# T10 daytime-window-refused: 12:00..00:00 spans midnight with a legal 12h
+# length but starts in daytime -> config refusal (exit 2); no poweroff and no
+# rtcwake line in the mock log. (Regression: pre-fix this powered off at 13:00.)
+reset_state
+export FAKE_NOW="2026-09-01 13:00"
+export NIGHT_START=12:00
+export NIGHT_END=00:00
+export WAKE_TIME=13:30
+export RTC_SYSFS="$RTC_DIR"
+export MOCK_LOG="$MOCK_LOG"
+run_nightly --shutdown
+rc=$?
+if [ "$rc" -eq 2 ] && ! grep -q 'poweroff' "$MOCK_LOG" && ! grep -q 'rtcwake' "$MOCK_LOG"; then
+    echo "PASS: T10 daytime-window-refused"
+else
+    echo "FAIL: T10 daytime-window-refused (rc=$rc)"
+    fails=$((fails + 1))
+fi
+unset NIGHT_START NIGHT_END WAKE_TIME 2>/dev/null || true
+
+# T11 malformed-start-refused: NIGHT_START=25:00 is not a valid HH:MM -> config
+# refusal (exit 2); no poweroff and no rtcwake line in the mock log.
+reset_state
+export FAKE_NOW="2026-09-01 23:00"
+export NIGHT_START=25:00
+export NIGHT_END=02:00
+export RTC_SYSFS="$RTC_DIR"
+export MOCK_LOG="$MOCK_LOG"
+run_nightly --shutdown
+rc=$?
+if [ "$rc" -eq 2 ] && ! grep -q 'poweroff' "$MOCK_LOG" && ! grep -q 'rtcwake' "$MOCK_LOG"; then
+    echo "PASS: T11 malformed-start-refused"
+else
+    echo "FAIL: T11 malformed-start-refused (rc=$rc)"
+    fails=$((fails + 1))
+fi
+unset NIGHT_START NIGHT_END WAKE_TIME 2>/dev/null || true
+
+# T12 malformed-end-refused: NIGHT_END=24:00 is not a valid HH:MM -> config
+# refusal (exit 2); no poweroff and no rtcwake line in the mock log.
+reset_state
+export FAKE_NOW="2026-09-01 23:00"
+export NIGHT_START=22:00
+export NIGHT_END=24:00
+export RTC_SYSFS="$RTC_DIR"
+export MOCK_LOG="$MOCK_LOG"
+run_nightly --shutdown
+rc=$?
+if [ "$rc" -eq 2 ] && ! grep -q 'poweroff' "$MOCK_LOG" && ! grep -q 'rtcwake' "$MOCK_LOG"; then
+    echo "PASS: T12 malformed-end-refused"
+else
+    echo "FAIL: T12 malformed-end-refused (rc=$rc)"
+    fails=$((fails + 1))
+fi
+unset NIGHT_START NIGHT_END WAKE_TIME 2>/dev/null || true
+
+# T13 boundary-start-allowed: NIGHT_START=20:00 is the earliest legal start
+# (>= 20:00) -> runs normally and powers off.
+reset_state
+export FAKE_NOW="2026-09-01 22:00"
+export NIGHT_START=20:00
+export NIGHT_END=08:00
+export WAKE_TIME=06:45
+export RTC_SYSFS="$RTC_DIR"
+export MOCK_LOG="$MOCK_LOG"
+run_nightly --shutdown
+rc=$?
+if [ "$rc" -eq 0 ] && grep -q 'systemctl poweroff' "$MOCK_LOG"; then
+    echo "PASS: T13 boundary-start-allowed"
+else
+    echo "FAIL: T13 boundary-start-allowed (rc=$rc)"
+    fails=$((fails + 1))
+fi
+unset NIGHT_START NIGHT_END WAKE_TIME 2>/dev/null || true
+
 if [ "$fails" -eq 0 ]; then
     echo "ALL TESTS PASSED"
     exit 0
