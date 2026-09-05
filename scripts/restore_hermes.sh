@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# DEPRECATED 2026-09-04 — superseded by Hermes built-in `hermes backup -q -l daily`
+# (cron job daily-hermes-backup, 06:30; snapshots in ~/.hermes/state-snapshots/,
+# restore via in-session `/snapshot restore <id>`). Kept for history; see docs/backup.md.
 # restore_hermes.sh — decrypt, verify and extract a Hermes backup.
 #
 # usage: restore_hermes.sh [--live|--yes] [--passphrase-file <file>] <backup-file> [dest-dir]
