@@ -6,15 +6,21 @@ by Hermes' built-in backup tooling. Deployment note (2026-08-13) and design doc
 
 ## Why
 
-At the time PR #7 landed (2026-08-13), Hermes v0.20.x had no backup tooling at
-all. By ~2026-08-28 the built-in CLI (`hermes backup`) matured: full-zip mode and
-a quick snapshot system that captures the critical file set (config, `state.db`,
-`.env`, `auth.json`, cron) with crash-consistent sqlite handling — the same
-lesson the custom layer's sqlite online-backup API embodied (upstream commit
-`d47fe28fc5` absorbed blocker B3, stale WAL/SHM sidecars).
+The custom layer was built because the built-in tooling had not been evaluated
+here at the time — not because it did not exist. Hermes has shipped built-in
+backup since April 2026: `hermes backup` + `hermes import` landed 2026-04-11
+(upstream `fa7cd44b92`), and `--quick` snapshots (`~/.hermes/state-snapshots/`)
+plus the `/snapshot` command landed 2026-04-13 (`381810ad50`) — the same
+snapshot system now in daily use. Both the built-in and the custom layer use
+SQLite's online backup API for crash-consistent DB snapshots; upstream commit
+`d47fe28fc5` later absorbed the custom layer's restore-side lesson (blocker B3,
+stale WAL/SHM sidecars).
 
-The custom cron job went dormant ~mid-August, so its archives were frozen
-snapshots of August-era state only.
+By 2026-08-28 the built-in CLI was mature here (v0.21.0) and was adopted in
+place of the custom layer per this decision.
+
+The custom cron job went dormant after its last archive (2026-08-27), so those
+archives were frozen snapshots of August-era state only.
 
 ## Decision
 
@@ -40,8 +46,9 @@ New design:
 - Old-layer archives (10 × AES-256 GPG, 2026-08-13 → 08-27, ~668 MB): newest
   decrypt round-trip **PASS** (10,430 members) before disposal
 - Old archives + stale `.lock` disposed via XDG trash (reversible, 2026-09-04);
-  deployed script `~/.hermes/scripts/backup_hermes.sh` + never-deployed
-  `restore_hermes.sh` retired to trash; passphrase file
+  deployed script `~/.hermes/scripts/backup_hermes.sh` retired to trash the same
+  day; `restore_hermes.sh` was **never deployed** on this host and remains
+  repo-only, now marked DEPRECATED in-repo; passphrase file
   `~/.config/hermes-backup/gpg-passphrase` **retained** (needed only if trash is
   restored — delete once trash is purged)
 - Not touched: `~/.hermes/backups/known-good/` watchdog rotation, local-LLM
