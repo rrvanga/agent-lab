@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# DEPRECATED 2026-09-04 — superseded by Hermes built-in `hermes backup -q -l daily`
+# (cron job daily-hermes-backup, 06:30; snapshots in ~/.hermes/state-snapshots/,
+# restore via in-session `/snapshot restore <id>`). Kept for history; see docs/backup.md.
 # backup_hermes.sh — crash-safe, encrypted daily backup of the Hermes agent home.
 #
 # Produces BACKUP_DIR/hermes-backup-YYYYMMDD_HHMMSS.tar.gz.gpg (UTC timestamps)

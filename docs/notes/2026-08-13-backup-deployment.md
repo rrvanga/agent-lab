@@ -1,5 +1,9 @@
 # 2026-08-13 — Backup pipeline: deployment & lessons
 
+> **SUPERSEDED 2026-09-04** — job `af3e8fdfa644` and the deployed script are
+> retired; replaced by the built-in layer (`hermes backup -q -l daily`, cron
+> `daily-hermes-backup`). See `docs/notes/2026-09-04-backup-retirement.md`.
+
 Issue #2 (Automated backup of ~/.hermes) — production deployment day.
 
 ## What landed

@@ -1,5 +1,12 @@
 # backup.md — Hermes encrypted daily backup
 
+> **SUPERSEDED 2026-09-04** — this custom encrypted layer is retired. Replaced by
+> Hermes' built-in `hermes backup -q -l daily` (cron job `daily-hermes-backup`,
+> 06:30), which writes consistent snapshots to `~/.hermes/state-snapshots/`
+> (restore via in-session `/snapshot restore <id>`). See
+> `docs/notes/2026-09-04-backup-retirement.md`. The scripts below remain for
+> history — do not re-deploy them.
+
 Crash-safe, encrypted snapshots of the Hermes agent home (`~/.hermes`), with
 retention pruning. Implemented as a bash script pair:
 
