@@ -42,3 +42,6 @@ gateway-starts.log
 # Python
 __pycache__/
 *.pyc
+
+# Scratch
+.review/

@@ -15,7 +15,7 @@ docs/ARCHITECTURE.md          # the current setup, mapped (understand before cha
 docs/MISSION.md               # the operating charter (verbatim)
 docs/DAILY_LOOP.md            # the daily Research → Issue → Implement → Test → Commit → Push loop
 docs/AI_ENGINEERING_TRENDS.md # 2025-2026 agentic AI trends reference (sources verified 2026-09-01)
-scripts/                      # deployed cron/ops scripts (source of truth; deployed to ~/.hermes/scripts/)
+scripts/                      # cron/ops scripts (source of truth; deployed to ~/.hermes/scripts/; check-ops-drift.sh verifies sync)
 SECURITY.md                   # secrets policy
 ```
 
@@ -28,5 +28,6 @@ SECURITY.md                   # secrets policy
 
 ## Current status
 
-- Day 0 complete: auth (gh CLI, keyring), repo created, architecture documented, backlog seeded.
+- Daily loop active (Mon–Fri 09:00 via Hermes cron): inspect → research → one task → implement+test → PR → MOA review gate → merge → issue close → notes.
+- 2026-09-07: ops-script drift reconciled (issue #22) — 14 deployed cron/ops scripts imported and templated, `check-ops-drift.sh` added.
 - See `docs/ARCHITECTURE.md` for the live picture.
