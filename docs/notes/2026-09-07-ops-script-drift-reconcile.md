@@ -16,7 +16,9 @@ and lost it.
   lists repo-only/local-only files. Environment-overridable for tests.
 - Added `scripts/test-check-ops-drift.sh`: fake HERMES_HOME fixture harness (pattern:
   test-nightly-shutdown.sh).
-- Refreshed docs/ARCHITECTURE.md (2026-09-07 state, full 20-job roster) and README.
+- Refreshed docs/ARCHITECTURE.md (2026-09-07 state, 19-job roster) and README.
+  Note: of 19 defined, 17 are enabled — `local-llm-backup-watchdog` paused and `battery-band-monitor`
+  completed (both superseded; ARCHITECTURE §4 marks them).
 
 ## Lessons
 - **opencode CLI permission layer auto-rejects `~/.hermes/scripts/*` reads** (external directory).

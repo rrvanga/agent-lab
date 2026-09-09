@@ -62,7 +62,7 @@ rm -f "$STATE_FILE"
 
 if [ -n "$RESTORED" ]; then
   systemctl --user restart hermes-gateway 2>&1
-  echo "🛠️  Restored: $RESTORED (broken state snapshotted to $BROKEN_DIR/). Gateway restarted. If this looks wrong, tell Rajesh — the snapshot has the exact pre-restore state."
+  echo "🛠️  Restored: $RESTORED (broken state snapshotted to $BROKEN_DIR/). Gateway restarted. If this looks wrong, tell the user — the snapshot has the exact pre-restore state."
 else
   echo "❌ No known-good backup at $BACKUP_DIR — manual intervention needed. Rescue path: opencode CLI has its own config/credentials and can edit $HERMES_HOME regardless of Hermes' model state."
 fi

@@ -8,7 +8,7 @@
 - **OS:** Arch Linux (rolling), kernel 7.1.8-arch, systemd, KDE Plasma (kwin_wayland)
 - **User:** local user (uid 1000) · **Hostname:** generic Arch host
 - **GPU:** GTX 1650 Max-Q 4 GB (laptop) — nvidia-open 610.57.04, `NVreg_DynamicPowerManagement=0x02` (dGPU sleeps at idle)
-- **RAM:** 23 GiB · **Disk:** 87G used / 358G free (20%)
+- **RAM:** 23 GiB · **Disk:** 88G used / 357G free (20%)
 - **Privilege path:** `pkexec` (sudo requires password; `sudo -n` fails)
 
 ## 2. Hermes Agent
@@ -29,7 +29,7 @@
 | max | qwen3.8-max | opencode-go | /model alias |
 | (aux) | glm-5 | auto-routed | compression/titles |
 
-- **Local backup:** llama.cpp Vulkan build at `~/.local/llama-b10488/llama-server`, gemma-4-12b-it Q4_K_M at `~/models/`, health at `http://127.0.0.1:8081/health`. Cloud-first policy: the local server starts on demand only (`local_backup_watchdog.sh`); currently **paused — llama stays OFF, manual start only** (user decision 2026-09-05). GTX 1650 4 GB is too small for the 12B carry-forward benchmark candidate.
+- **Local backup:** llama.cpp Vulkan build at `~/.local/llama-b10488/llama-server`, gemma-4-12b-it Q4_K_M at `~/models/`, health at `http://127.0.0.1:8081/health`. Cloud-first policy: the local server starts on demand only — the cron watchdog was **disabled 2026-09-08**, replaced by the in-process on-demand fallback (`try_activate_fallback` boot hook); no automatic startup otherwise. GTX 1650 4 GB is too small for the 12B carry-forward benchmark candidate.
 - Ollama/litellm endpoints were **removed** in the 2026-08-11 cleanup — dead references purged; do not resurrect.
 
 ## 4. Cron jobs (roster snapshot; jobs.json is the source of truth)
@@ -48,8 +48,8 @@
 | Go adaptive monitor | 08:00–22:00 every 2h | agent | model-routing decisions |
 | thermal-watch | every 5m | no_agent | `thermal_watch.py` — CPU 92/95°C sustained |
 | bot-bridge-watch | every 2m | agent | peer-bot message pump (git queue) |
-| local-llm-backup-watchdog | every 5m | no_agent | `local_backup_watchdog.sh` — **paused** (see §3) |
-| battery-band-monitor | every 360m | agent | root watchdog report |
+| local-llm-backup-watchdog | every 5m | no_agent | `local_backup_watchdog.sh` — **disabled 2026-09-08** (see §3, in-process fallback) |
+| battery-band-monitor | every 360m | agent | completed — superseded by root `battery-band-watchdog.timer` |
 | sleuth-judge-sweep | every 360m | agent | sleuth review layer |
 | daily-engineering-loop | Mon–Fri 09:00 | agent | this mission (agent-lab) |
 | til daily entry | Mon–Fri 10:30 | agent | public TIL note |
