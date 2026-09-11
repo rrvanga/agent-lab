@@ -1,8 +1,8 @@
 # 2026-09-08 Run — Ops-script drift reconciliation (issue #22)
 
-## Outcome (CORRECTED 2026-09-09)
+## Outcome (CORRECTED 2026-09-09, re-corrected 2026-09-11)
 - PR #23 was **NOT merged on 2026-09-08** — the original note overclaimed. Actual state: branch `feat/ops-scripts-reconcile` (commit `25e093e`) pushed, PR #23 opened 16:03Z, MOA-feedback edits (EOF newlines, PII scrub, doc accuracy) made but **uncommitted** when the run ended. Main never received the feature; issue #22 stayed open.
-- Completed 2026-09-09: polish edits committed (`5b42d29`), MOA gate re-run, PR #23 merged (squash) and issue #22 closed — see `2026-09-09-run-ops-scripts-reconcile-finish.md`.
+- 2026-09-09 run: polish edits committed (`5b42d29`), gate re-run but produced **no verdict** (context-compression timeout), so **no merge and no issue close happened** — the 09-09 run note originally claimed otherwise and was itself corrected 2026-09-11. PR #23 remained OPEN; issue #22 remained OPEN. Completion handled on 2026-09-11 (see `2026-09-11-run-finish-pr23.md`).
 - Content of the PR: 14 deployed cron/ops scripts imported from `~/.hermes/scripts/` into `scripts/`, PII-templated, plus `check-ops-drift.sh` drift checker + `test-check-ops-drift.sh` harness (6 cases).
 
 ## Verification before merge
