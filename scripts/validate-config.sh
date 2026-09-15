@@ -93,6 +93,7 @@ CODE=$(curl -s -o /dev/null -m 20 -w '%{http_code}' \
   -X POST "$BASE_URL/chat/completions" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
+  -H "x-opencode-session: sess-validate-config" \
   -d '{"model":"deepseek-v4-flash","messages":[{"role":"user","content":"ping"}],"max_tokens":1}')
 echo "  POST $BASE_URL/chat/completions -> HTTP $CODE"
 if [ "$CODE" = "200" ]; then
