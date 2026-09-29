@@ -22,15 +22,27 @@ Prototype artifacts under `docs/experiments/archify/`:
 | Delivery composition metrics | 0 proper crossings, 0 ambiguous corridors, 0 label-route-clearance, 0 desktop-readability, max bends 2, min label-route clearance 6 px, min segment 22 px |
 | `deliver` determinism | artifact SHA-256 `c9e76cef…a90ec` — byte-identical to committed HTML |
 | Evidence verification | `verified: true` — 3 repo sources resolved to revision `7c8465ee` via `--repo-root` |
-| `visual-check` (real Chrome) | status **pass**; containment ok at 1440×900, 1600×1000, 1920×1080, 2048×1320 (light + dark); min projected node text 6.88 px (≥ 6 px floor); dock-stage gap 10.2 px (≥ 10) |
+| `visual-check` (real Chrome) | status **pass**; containment metrics ok at 1440×900, 1600×1000, 1920×1080, 2048×1320 (light theme — per-receipt viewport records); dark-theme rendering attested by capture PNGs at 1440×900 and 2048×1320; min projected node text 6.88 px (≥ 6 px floor); dock-stage gap 10.2 px (≥ 10) |
 | Visual review | automated browser evidence only (`visualReview: pending`) — no image-capable review in headless run |
 
 ## PII / security
 
-Strictly masked: no machine username, hostname, absolute path, provider/API URL,
-or account ID in the spec or artifact. Only identifying string is the public
-repo URL (`https://github.com/rrvanga/agent-lab`), which the evidence checker
-*requires* (must match the local Git remote + revision to verify source links).
+Strictly masked: no machine username, hostname, provider/API URL, or account ID in
+the spec, artifact, or receipts. Committed receipts use **repo-relative paths**
+(`docs/experiments/archify/…`, `google-chrome-stable` binary name only) — the tool's
+absolute-path emission (`path.resolve()`) was scrubbed from the committed JSON.
+Only identifying string is the public repo URL (`https://github.com/rrvanga/agent-lab`),
+which the evidence checker *requires* (must match the local Git remote + revision
+to verify source links).
+
+## Known limitations (upstream)
+
+- No visible footer/credit line: archify 2.17.0 emits only `<meta name="generator"
+  content="archify 2.17.0-dev.1">`; there is no schema/renderer option for a visible
+  credit. Acceptable for internal poster artifacts; noted as an upstream gap.
+- Receipts are scrubbed post-generation (tool emits absolute paths by design);
+  re-running `deliver`/`visual-check` locally re-embeds absolute paths, so consumers
+  should regenerate, not trust the committed copy.
 
 ## Recommendation
 

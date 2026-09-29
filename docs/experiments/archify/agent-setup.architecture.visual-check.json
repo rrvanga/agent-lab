@@ -6,7 +6,7 @@
   "status": "pass",
   "visualReview": "pending",
   "artifact": {
-    "path": "/home/crashcrosster/dev/agent-lab/docs/experiments/archify/agent-setup.architecture.html",
+    "path": "docs/experiments/archify/agent-setup.architecture.html",
     "sha256": "c9e76cef6c860236beb7c3778b1d235f2185e2f2c53317d58e76fa70a15a90ec",
     "bytes": 817400
   },
@@ -16,7 +16,7 @@
   },
   "chrome": {
     "status": "available",
-    "executable": "/usr/bin/google-chrome-stable"
+    "executable": "google-chrome-stable"
   },
   "diagnostics": [],
   "containment": {

@@ -3,8 +3,8 @@
   "ok": true,
   "command": "deliver",
   "type": "architecture",
-  "input": "/home/crashcrosster/dev/agent-lab/docs/experiments/archify/agent-setup.architecture.json",
-  "output": "/home/crashcrosster/dev/agent-lab/docs/experiments/archify/agent-setup.architecture.html",
+  "input": "docs/experiments/archify/agent-setup.architecture.json",
+  "output": "docs/experiments/archify/agent-setup.architecture.html",
   "specification": {
     "sha256": "70b42ab76a414b07e4508dca6c883891d3faab4af1c8971d4b4124875b65b64d",
     "bytes": 5623
