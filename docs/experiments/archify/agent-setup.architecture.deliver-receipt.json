@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "deliver",
+  "type": "architecture",
+  "input": "docs/experiments/archify/agent-setup.architecture.json",
+  "output": "docs/experiments/archify/agent-setup.architecture.html",
+  "specification": {
+    "sha256": "70b42ab76a414b07e4508dca6c883891d3faab4af1c8971d4b4124875b65b64d",
+    "bytes": 5623
+  },
+  "artifact": {
+    "sha256": "c9e76cef6c860236beb7c3778b1d235f2185e2f2c53317d58e76fa70a15a90ec",
+    "bytes": 817400
+  },
+  "validation": {
+    "checksPassed": 9,
+    "checkCount": 9,
+    "compositionProfile": "showcase",
+    "compositionStatus": "pass",
+    "errors": 0,
+    "warnings": 0
+  },
+  "evidence": {
+    "verified": true,
+    "repository": "https://github.com/rrvanga/agent-lab",
+    "revision": "7c8465ee2e722bc7be8b226337ebe3fd9ba7bef9",
+    "references": 3,
+    "linkMode": "local-only"
+  }
+}

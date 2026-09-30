@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Agent Lab",
+    "subtitle": "autonomous engineering loop",
+    "locale": "en",
+    "output": "agent-setup.architecture.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/rrvanga/agent-lab",
+      "provider": "github",
+      "revision": "7c8465ee2e722bc7be8b226337ebe3fd9ba7bef9",
+      "link_mode": "local-only"
+    },
+    "views": [
+      {
+        "id": "loop-overview",
+        "label": "agent-lab architecture",
+        "focus": ["scheduler", "hermes", "opencode", "github", "router", "kanban", "kb", "archives", "secrets", "fallback", "desktop"],
+        "note": "Follow the daily loop from scheduler trigger to GitHub merge."
+      },
+      {
+        "id": "workstation",
+        "label": "Workstation (local)",
+        "focus": ["scheduler", "hermes", "opencode", "kanban", "kb", "archives", "secrets", "fallback", "desktop"],
+        "note": "All local components inside the workstation region."
+      }
+    ],
+    "legend": {
+      "mode": "all",
+      "entries": {
+        "frontend": { "label": "Frontend" },
+        "backend": { "label": "Backend" },
+        "database": { "label": "Database" },
+        "cloud": { "label": "Cloud" },
+        "security": { "label": "Security" },
+        "messagebus": { "label": "Message bus" },
+        "external": { "label": "External" }
+      }
+    }
+  },
+  "layout": {
+    "mode": "grid",
+    "origin": [48, 48],
+    "cols": 7,
+    "cellW": 120,
+    "cellH": 60,
+    "gapX": 48,
+    "gapY": 44
+  },
+  "components": [
+    { "id": "scheduler", "type": "external", "label": "Scheduler", "sublabel": "cron jobs · timers", "row": 2, "col": 0, "sources": [{ "path": "docs/DAILY_LOOP.md", "line": 1, "end_line": 34, "label": "daily loop spec" }] },
+    { "id": "hermes", "type": "backend", "label": "Hermes Agent", "sublabel": "autonomous agent", "row": 2, "col": 1, "sources": [{ "path": "docs/MISSION.md", "line": 1, "end_line": 86, "label": "mission doc" }] },
+    { "id": "opencode", "type": "backend", "label": "OpenCode CLI", "sublabel": "coding agent", "row": 2, "col": 2 },
+    { "id": "github", "type": "external", "label": "GitHub", "sublabel": "issues · PRs · hosting", "row": 2, "col": 6 },
+    { "id": "router", "type": "cloud", "label": "Model Routing", "sublabel": "cheapest adequate", "row": 1, "col": 6 },
+    { "id": "kanban", "type": "messagebus", "label": "Kanban Queue", "sublabel": "durable task queue", "row": 0, "col": 2 },
+    { "id": "kb", "type": "database", "label": "Knowledge Base", "sublabel": "notes · vault · skills", "row": 0, "col": 4, "sources": [{ "path": "docs/ARCHITECTURE.md", "line": 1, "end_line": 81, "label": "architecture doc" }] },
+    { "id": "archives", "type": "database", "label": "Archives", "sublabel": "encrypted backups", "row": 4, "col": 4 },
+    { "id": "secrets", "type": "security", "label": "Secrets", "sublabel": "env-only · no commits", "row": 0, "col": 1 },
+    { "id": "fallback", "type": "backend", "label": "Fallback Model", "sublabel": "on-demand · local", "row": 4, "col": 2 },
+    { "id": "desktop", "type": "frontend", "label": "Desktop", "sublabel": "KDE · review surface", "row": 0, "col": 5 }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Workstation (local)", "wraps": ["scheduler", "hermes", "opencode", "kanban", "kb", "archives", "secrets", "fallback", "desktop"], "pad": 28 }
+  ],
+  "connections": [
+    { "id": "scheduler-to-hermes", "from": "scheduler", "to": "hermes", "label": "trigger" },
+    { "id": "hermes-to-opencode", "from": "hermes", "to": "opencode", "label": "delegate" },
+    { "id": "opencode-to-github", "from": "opencode", "to": "github", "label": "push PR" },
+    { "id": "github-to-hermes", "from": "github", "to": "hermes", "label": "review results", "fromSide": "bottom", "toSide": "bottom", "via": [[1116, 390], [276, 390]] },
+    { "id": "hermes-to-router", "from": "hermes", "to": "router", "label": "route request", "variant": "emphasis", "fromSide": "top", "toSide": "bottom" },
+    { "id": "router-to-hermes", "from": "router", "to": "hermes", "label": "model response", "fromSide": "bottom", "toSide": "top" },
+    { "id": "hermes-to-kanban", "from": "hermes", "to": "kanban", "label": "enqueue", "fromSide": "top", "toSide": "bottom" },
+    { "id": "hermes-to-kb", "from": "hermes", "to": "kb", "label": "read · write", "fromSide": "top", "toSide": "bottom" },
+    { "id": "hermes-to-archives", "from": "hermes", "to": "archives", "label": "backup", "variant": "dashed", "fromSide": "bottom", "toSide": "top" },
+    { "id": "hermes-to-secrets", "from": "hermes", "to": "secrets", "label": "resolve secrets", "variant": "security" },
+    { "id": "hermes-to-fallback", "from": "hermes", "to": "fallback", "label": "fallback", "variant": "dashed", "fromSide": "bottom", "toSide": "top" },
+    { "id": "hermes-to-desktop", "from": "hermes", "to": "desktop", "label": "review surface", "fromSide": "top", "toSide": "bottom" }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "Automation", "items": ["Daily loop: inspect → research → implement → review → merge", "PRs gated by MOA (3-model review)", "All changes via OpenCode CLI", "Cheapest adequate model"] },
+    { "dot": "emerald", "title": "Delivery", "items": ["Push all work to GitHub", "PRs merged squash, branch deleted", "Issues updated & closed", "Learnings in docs/notes/"] },
+    { "dot": "rose", "title": "Safety", "items": ["Never commit secrets", "Authorize before destructive actions", "Verify real prerequisites first", "PII masked in all output"] }
+  ]
+}
