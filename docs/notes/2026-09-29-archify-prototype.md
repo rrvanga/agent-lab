@@ -5,7 +5,7 @@
 ## What was evaluated
 
 Prototype of [`tt-a1i/archify`](https://github.com/tt-a1i/archify) (MIT, Node.js,
-skill v2.17.0) as an agent skill for *verifiable* architecture diagrams, compared
+skill v2.17.0-dev.1 per generator meta; see Known limitations) as an agent skill for *verifiable* architecture diagrams, compared
 against the current static `render_architecture.py` pipeline (`assets/architecture.html/png`).
 
 Prototype artifacts under `docs/experiments/archify/`:
@@ -19,7 +19,7 @@ Prototype artifacts under `docs/experiments/archify/`:
 | Gate | Result |
 |---|---|
 | `validate --quality showcase` | 9/9 checks pass, **0 errors / 0 warnings** |
-| Delivery composition metrics | 0 proper crossings, 0 ambiguous corridors, 0 label-route-clearance, 0 desktop-readability, max bends 2, min label-route clearance 6 px, min segment 22 px |
+| Delivery composition metrics (observed in rendered HTML; the committed receipt carries only aggregate `compositionStatus: pass` — re-measure before relying on specifics) | 0 proper crossings, 0 ambiguous corridors, 0 label-route-clearance, 0 desktop-readability, max bends 2, min label-route clearance 6 px, min segment 22 px |
 | `deliver` determinism | artifact SHA-256 `c9e76cef…a90ec` — byte-identical to committed HTML |
 | Evidence verification | `verified: true` — 3 repo sources resolved to revision `7c8465ee` via `--repo-root` |
 | `visual-check` (real Chrome) | status **pass**; containment metrics ok at 1440×900, 1600×1000, 1920×1080, 2048×1320 (light theme — per-receipt viewport records); dark-theme rendering attested by capture PNGs at 1440×900 and 2048×1320; min projected node text 6.88 px (≥ 6 px floor); dock-stage gap 10.2 px (≥ 10) |
@@ -43,6 +43,9 @@ to verify source links).
 - Receipts are scrubbed post-generation (tool emits absolute paths by design);
   re-running `deliver`/`visual-check` locally re-embeds absolute paths, so consumers
   should regenerate, not trust the committed copy.
+- Pre-fix intermediate branch history (8bb49a3) still contains the unscubbed
+  absolute paths; this is harmless only under the repo's squash-merge convention
+  (one clean commit on main — never `--no-ff`/rebase this PR).
 
 ## Recommendation
 
