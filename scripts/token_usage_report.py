@@ -20,65 +20,131 @@ HOUR = 3600
 # Go subscription pricing ($ per 1M tokens): input, output, cache_read, cache_write
 # From opencode.ai/docs/go via anomalycha/opencode repo go.mdx (verified 2026-08-11).
 # Buckets: 5h=$12, 7d=$30, 30d=$60. 4-tuple: cache_write=0.0 where not charged.
+# Go pricing ($ per 1M tokens): input, output, cache_read, cache_write.
+# VERIFIED 2026-09-19 from the live Go pricing table (opencode.ai/docs, page
+# "Last updated: Sep 19, 2026") - supersedes the 2026-08-11 copy. Corrections that
+# mattered: glm-5.3-flash and qwen3.8-flash were priced ~9-13x too HIGH (meter
+# overcounted), longcat-2.0 ~4.7x high, muse-spark * ~5x high, hy4-preview ~6x LOW,
+# and every DeepSeek model was undercounted (output 2.1x, pro cache-read 6x).
+# DeepSeek models now bill PEAK/OFF-PEAK (peak = 01:00-04:00 + 06:00-10:00 UTC,
+# Mon-Fri; weekends always off-peak). session_model_usage keeps only first/last_seen
+# aggregates, so per-call tiering is impossible: DeepSeek entries below are
+# time-weighted blends (0.792 off-peak + 0.208 peak) so the meter
+# is neither optimistic nor inflated. Exact pairs are in DS_PEAK_TIERS.
 GO_RATES = {
-    'grok-4.5':          (2.00, 6.00, 0.30, 0.0),
-    'grok-4.6':          (2.00, 6.00, 0.30, 0.0),  # GUESS ≈ grok-4.5
-    'gpt-5.6-luna':      (0.20, 1.20, 0.02, 0.25),
-    'glm-5':             (1.40, 4.40, 0.26, 0.0),
-    'glm-5.1':           (1.40, 4.40, 0.26, 0.0),
-    'glm-5.2':           (1.40, 4.40, 0.26, 0.0),
-    'glm-5.3':           (1.40, 4.40, 0.26, 0.0),
-    'glm-5.3-flash':     (1.40, 4.40, 0.26, 0.0),  # GUESS ≈ glm-5.3 (flash tier; may price lower)
-    'kimi-k3':           (3.00, 15.00, 0.30, 0.0),
-    'kimi-k2.7-code':    (0.95, 4.00, 0.19, 0.0),
-    'kimi-k2.6':         (0.95, 4.00, 0.19, 0.0),
-    'mimo-v2.5':         (0.14, 0.28, 0.0028, 0.0),
-    'mimo-v2.5-pro':     (0.435, 0.87, 0.003625, 0.0),
-    'minimax-m3':        (0.30, 1.20, 0.06, 0.0),
-    'minimax-m2.7':      (0.30, 1.20, 0.06, 0.0),
-    'minimax-m2.5':      (0.30, 1.20, 0.06, 0.0),
-    'muse-spark-1.2':    (0.50, 3.00, 0.05, 0.625),  # GUESS ≈ qwen3.6-plus tier (no official rate; repo 404)
-    'muse-spark-1.2-contributor': (0.50, 3.00, 0.05, 0.625),  # GUESS ≈ muse-spark-1.2
-    'muse-spark-1.3-contributor': (0.50, 3.00, 0.05, 0.625),  # GUESS ≈ muse-spark-1.2-contributor
-    'qwen3.8-max':       (2.00, 6.00, 0.25, 2.50),
-    'qwen3.7-max':       (2.50, 7.50, 0.50, 3.125),
-    'qwen3.7-plus':      (0.40, 1.60, 0.04, 0.50),
-    'qwen3.6-plus':      (0.50, 3.00, 0.05, 0.625),
-    'deepseek-v4-pro':   (0.435, 0.87, 0.003625, 0.0),
-    'deepseek-v4-flash': (0.14, 0.28, 0.0028, 0.0),
-    'deepseek-v4-flash-vision-exp': (0.14, 0.28, 0.0028, 0.0),  # GUESS ≈ deepseek-v4-flash
-    'ox-alpha-free': (0.0, 0.0, 0.0, 0.0),  # GUESS: promo free model ("limited time" per opencode.ai/docs/go)
-    'hy3':               (0.14, 0.58, 0.035, 0.0),
-    'hy3-preview':       (0.14, 0.58, 0.035, 0.0),  # GUESS ≈ hy3
-    'hy4-preview':       (0.14, 0.58, 0.035, 0.0),  # GUESS ≈ hy3
-    'qwen3.8-flash':     (2.00, 6.00, 0.25, 2.50),  # GUESS ≈ qwen3.8-max (flash tier; may price lower)
-    # Added 2026-08-30 by adaptive-monitor (all GUESS by sibling analogy; no official rates)
-    'kimi-k2.5':         (0.95, 4.00, 0.19, 0.0),   # GUESS ≈ kimi-k2.6
-    'longcat-2.0':       (1.40, 4.40, 0.26, 0.0),   # GUESS ≈ glm-5 tier (no sibling; mid-tier)
-    'mimo-v2-omni':      (0.435, 0.87, 0.003625, 0.0),  # GUESS ≈ mimo-v2.5-pro (omni/multimodal)
-    'mimo-v2-pro':       (0.435, 0.87, 0.003625, 0.0),  # GUESS ≈ mimo-v2.5-pro
-    'qwen3.5-plus':      (0.50, 3.00, 0.05, 0.625), # GUESS ≈ qwen3.6-plus (prev gen)
-    # Added 2026-09-04 by adaptive-monitor (VERIFIED from live opencode.ai/docs/go pricing table)
-    'omen-alpha':        (0.20, 0.66, 0.04, 0.0),   # official: $0.20/$0.66/$0.04/-, usage $100/mo, 11,600 req/5h
+    # --- non-tiered, verified 2026-09-19 ---
+    'glm-5.3-flash':    (0.15, 0.50, 0.03, 0.0),      # $60/mo, 6320 req/5h
+    'glm-5.3':          (1.40, 4.40, 0.26, 0.0),      # $15/mo, only 220 req/5h
+    'glm-5.2':          (1.40, 4.40, 0.26, 0.0),      # $60/mo
+    'glm-5.1':          (1.40, 4.40, 0.26, 0.0),      # $60/mo
+    'glm-5':            (1.40, 4.40, 0.26, 0.0),      # GUESS ~ glm-5.1
+    'kimi-k3':          (3.00, 15.00, 0.30, 0.0),     # $15/mo, only 110 req/5h
+    'kimi-k2.7-code':   (0.95, 4.00, 0.19, 0.0),      # $60/mo
+    'kimi-k2.6':        (0.95, 4.00, 0.16, 0.0),      # $60/mo
+    'kimi-k2.5':        (0.95, 4.00, 0.16, 0.0),      # GUESS ~ kimi-k2.6
+    'longcat-2.0':      (0.30, 1.20, 0.006, 0.0),     # $60/mo, 11400 req/5h
+    'longcat-2.5-preview-free': (0.0, 0.0, 0.0, 0.0),   # free preview 09-26; gated 403 outside OpenCode; also on zen/go paid catalog
+    'mimo-v2.5':        (0.14, 0.28, 0.0028, 0.0),    # $60/mo, 30100 req/5h
+    'mimo-v2.5-pro':    (0.435, 0.87, 0.003625, 0.0), # $15/mo
+    'mimo-v2.6-flash':   (0.14, 0.28, 0.0028, 0.0),    # verified 09-22 live docs; ~mimo-v2.5; $60/mo, 30100 req/5h
+    'mimo-v2.6-pro':     (0.435, 0.87, 0.003625, 0.0), # verified 09-22 live docs; ~mimo-v2.5-pro; $15/mo
+    'mimo-v2-pro':      (0.435, 0.87, 0.003625, 0.0), # GUESS ~ mimo-v2.5-pro
+    'mimo-v2-omni':     (0.435, 0.87, 0.003625, 0.0), # GUESS ~ mimo-v2.5-pro
+    'minimax-m3':       (0.30, 1.20, 0.06, 0.0),      # $60/mo
+    'minimax-m2.7':     (0.30, 1.20, 0.06, 0.375),    # $60/mo
+    'minimax-m2.5':     (0.30, 1.20, 0.06, 0.375),    # $60/mo
+    'muse-spark-1.3-contributor': (0.10, 0.20, 0.002, 0.0),  # $60/mo, 45300 req/5h; trains on your data
+    'muse-spark-1.2-contributor': (0.10, 0.20, 0.002, 0.0),  # $60/mo; trains on your data
+    'qwen3.8-max':      (2.00, 6.00, 0.25, 2.50),     # $15/mo
+    'qwen3.8-flash':    (0.15, 0.47, 0.016, 0.20),    # $30/mo, 5400 req/5h
+    'qwen3.7-max':      (2.50, 7.50, 0.50, 3.125),    # $30/mo
+    'qwen3.7-plus':     (0.40, 1.60, 0.04, 0.50),     # $60/mo
+    'qwen3.6-plus':     (0.50, 3.00, 0.05, 0.625),    # $60/mo
+    'qwen3.5-plus':     (0.50, 3.00, 0.05, 0.625),    # GUESS ~ qwen3.6-plus
+    'hy3':              (0.14, 0.58, 0.035, 0.0),     # $60/mo
+    'hy3-preview':      (0.14, 0.58, 0.035, 0.0),     # GUESS ~ hy3
+    'hy4-preview':      (0.834, 2.501, 0.042, 0.0),   # $30/mo
+    'gpt-5.6-luna':     (0.20, 1.20, 0.02, 0.25),     # <=272K tier; $15/mo
+    'gpt-6-luna':       (0.10, 0.50, 0.01, 0.125),    # <=272K tier, verified 09-23 live docs; >272K: 0.20/0.75/0.02; $15/mo
+    'grok-4.6':         (2.00, 6.00, 0.50, 0.0),      # <=200K tier; $15/mo
+    'grok-4.7':         (2.00, 6.00, 0.50, 0.0),      # verified 09-22 live docs; <=200K tier; $15/mo, 169 req/5h
+    'grok-4.5':         (2.00, 6.00, 0.50, 0.0),      # GUESS ~ grok-4.6
+    'omen-alpha':       (0.20, 0.66, 0.04, 0.0),      # promo model, not on the pricing table
+    'union-alpha':      (0.20, 0.66, 0.04, 0.0),      # GUESS ~ omen-alpha
+    'ox-alpha-free':    (0.0, 0.0, 0.0, 0.0),         # promo free
+    'space-bunny-free': (0.0, 0.0, 0.0, 0.0),         # free (limited time), 09-23 docs; also on zen/go paid catalog
+    # --- DeepSeek: peak/off-peak blend (see DS_PEAK_TIERS for exact pairs) ---
+    'deepseek-v4-flash':            (0.18125, 0.725, 0.003625, 0.0),   # $30/mo, 13000 req/5h
+    'deepseek-v4.1-flash':          (0.18125, 0.725, 0.003625, 0.0),   # 4x promo ENDS 2026-09-20: $60 -> $15/mo
+    'deepseek-flash':               (0.18125, 0.725, 0.003625, 0.0),   # GUESS ~ deepseek-v4-flash
+    'deepseek-v4-flash-vision-exp': (0.18125, 0.725, 0.003625, 0.0),   # $15/mo
+    'deepseek-v4-pro':              (0.7975, 2.3925, 0.026583, 0.0),   # $15/mo, 1050 req/5h
+}
+
+# Exact DeepSeek tiers: model -> (off_peak, peak), each (input, output, cache_read).
+DS_PEAK_TIERS = {
+    'deepseek-v4-flash':            ((0.15, 0.60, 0.003), (0.30, 1.20, 0.006)),
+    'deepseek-v4.1-flash':          ((0.15, 0.60, 0.003), (0.30, 1.20, 0.006)),
+    'deepseek-v4-flash-vision-exp': ((0.15, 0.60, 0.003), (0.30, 1.20, 0.006)),
+    'deepseek-v4-pro':              ((0.66, 1.98, 0.022), (1.32, 3.96, 0.044)),
+}
+
+# Per-model monthly usage limits (USD), verified 2026-09-19. NOTE: the old single
+# pool ($12/5h, $30/7d, $60/30d) is no longer how Go works - each model has its own
+# limit, split 20% / 5h, 50% / 7d, 100% / 30d. Captured here for the meter redesign;
+# NOT yet used by the bucket math below.
+GO_MODEL_MONTHLY = {
+    'glm-5.3-flash': 60, 'glm-5.3': 15, 'glm-5.2': 60, 'glm-5.1': 60,
+    'kimi-k3': 15, 'kimi-k2.7-code': 60, 'kimi-k2.6': 60,
+    'longcat-2.0': 60, 'mimo-v2.5': 60, 'mimo-v2.5-pro': 15, 'mimo-v2.6-flash': 60, 'mimo-v2.6-pro': 15,
+    'minimax-m3': 60, 'minimax-m2.7': 60, 'minimax-m2.5': 60,
+    'muse-spark-1.3-contributor': 60, 'muse-spark-1.2-contributor': 60,
+    'qwen3.8-max': 15, 'qwen3.8-flash': 30, 'qwen3.7-max': 30,
+    'qwen3.7-plus': 60, 'qwen3.6-plus': 60,
+    'deepseek-v4.1-flash': 60, 'deepseek-v4-pro': 15,
+    'deepseek-v4-flash': 30, 'deepseek-v4-flash-vision-exp': 15,
+    'hy4-preview': 30, 'hy3': 60, 'grok-4.6': 15, 'grok-4.7': 15, 'gpt-5.6-luna': 15, 'gpt-6-luna': 15,
 }
 GO_CAPS = [(5 * HOUR, 12.0), (7 * DAY, 30.0), (30 * DAY, 60.0)]
 GO_DEFAULT_RATE = GO_RATES['deepseek-v4-flash']  # unknown models: priced cheap AND reported
 
-# Per-model request caps (requests / 5 hours) from opencode.ai/go (2026-08-14).
-# These are promotional/changeable — not live-fetched. The recommendation only
-# watches the default + cron models.
+# Per-model request caps (requests / 5 hours) VERIFIED 2026-09-19 against the live
+# opencode.ai/docs/go "Estimated requests" table. Three entries were badly wrong
+# (they held older/larger figures — flash 63,300 vs the real 13,000, i.e. the meter's
+# denominator was 4.9x too generous, which reads as "plenty of headroom" when there
+# isn't). Promotional and changeable; still not live-fetched.
 PER_MODEL_REQ_CAPS = {
-    'grok-4.5': 120,
-    'kimi-k3': 110,
-    'qwen3.8-max': 160,
+    'glm-5.3-flash': 6320,
+    'glm-5.3': 220,
     'glm-5.2': 880,
-    'minimax-m3': 3200,
-    'deepseek-v4-pro': 3450,
-    'gpt-5.6-luna': 4100,
-    'qwen3.7-plus': 4300,
-    'hy3': 4300,
+    'glm-5.1': 880,
+    'kimi-k3': 110,
+    'kimi-k2.7-code': 1350,
+    'kimi-k2.6': 1150,
+    'longcat-2.0': 11400,
     'mimo-v2.5': 30100,
-    'deepseek-v4-flash': 63300,
+    'mimo-v2.5-pro': 3250,
+    'mimo-v2.6-flash': 30100,
+    'mimo-v2.6-pro': 3250,
+    'minimax-m3': 3200,
+    'minimax-m2.7': 3400,
+    'muse-spark-1.3-contributor': 45300,
+    'muse-spark-1.2-contributor': 45300,
+    'qwen3.8-max': 160,
+    'qwen3.8-flash': 5400,
+    'qwen3.7-max': 170,
+    'qwen3.7-plus': 4300,
+    'qwen3.6-plus': 3300,
+    'deepseek-v4.1-flash': 26000,   # 4x promo ENDS 2026-09-20 -> drops to 6500
+    'deepseek-v4-pro': 1050,
+    'deepseek-v4-flash': 13000,
+    'deepseek-v4-flash-vision-exp': 6500,
+    'hy4-preview': 1350,
+    'hy3': 4300,
+    'grok-4.6': 169,
+    'grok-4.7': 169,
+    'grok-4.5': 169,                # GUESS ~ grok-4.6 (no doc row)
+    'gpt-5.6-luna': 2050,
 }
 # Gateway model strings that actually route to the default model (config.yaml aliases).
 MODEL_ALIASES = {
@@ -188,6 +254,67 @@ def quota_line():
     return line, sorted(unknown_all)
 
 
+def per_model_cost(since):
+    """{model: implied $} for Go traffic since `since` (aliases applied).
+
+    Go limits are PER MODEL (20% / 5h, 50% / 7d, 100% / 30d of that model's
+    monthly figure), not a shared $12/$30/$60 pool — so bucket % under-counts
+    whenever traffic concentrates in one lane.
+    """
+    rows = conn.execute(
+        "SELECT model, SUM(api_call_count), SUM(input_tokens), SUM(output_tokens), "
+        "SUM(cache_read_tokens), SUM(cache_write_tokens) FROM session_model_usage "
+        "WHERE billing_base_url LIKE '%opencode.ai/zen/go%' AND last_seen >= ? "
+        "GROUP BY model", (since,)).fetchall()
+    costs = {}
+    for model, c, i, o, r, w in rows:
+        rate = GO_RATES.get(model) or GO_DEFAULT_RATE
+        m = MODEL_ALIASES.get(model, model)
+        costs[m] = costs.get(m, 0.0) + (i or 0) / 1e6 * rate[0] \
+            + (o or 0) / 1e6 * rate[1] + (r or 0) / 1e6 * rate[2] \
+            + (w or 0) / 1e6 * rate[3]
+    return costs
+
+
+def per_model_quota_line():
+    """Each lane against its OWN cap; names the lane nearest its ceiling.
+
+    Read-out only — changes no routing. Sub-window caps are 20% (5h) and 50%
+    (7d) of the monthly figure, per the Go docs.
+    """
+    months = per_model_cost(NOW - 30 * DAY)
+    if not months:
+        return None
+    uncapped = []
+    lanes = []
+    for m, cost in months.items():
+        cap = GO_MODEL_MONTHLY.get(m)
+        if not cap:
+            uncapped.append(m)
+            continue
+        h5 = per_model_cost(NOW - 5 * HOUR).get(m, 0.0)
+        d7 = per_model_cost(NOW - 7 * DAY).get(m, 0.0)
+        lanes.append({
+            'model': m, 'cost': cost, 'cap': cap,
+            'p30': cost / cap * 100,
+            'p7': d7 / (cap * 0.50) * 100,
+            'p5': h5 / (cap * 0.20) * 100,
+        })
+    if not lanes:
+        return None
+    for L in lanes:
+        L['worst'] = max(L['p5'], L['p7'], L['p30'])
+    lanes.sort(key=lambda L: -L['worst'])
+    shown = ' · '.join(
+        f'{L["model"]} ${L["cost"]:.2f}/{L["cap"]:.0f} ({L["p30"]:.1f}%)' for L in lanes)
+    top = lanes[0]
+    mark = '🔴' if top['worst'] >= 80 else ('⚠️' if top['worst'] >= 50 else '·')
+    head = f'Per-model 30d: {shown}'
+    near = (f'  {mark} nearest ceiling: {top["model"]} — 5h {top["p5"]:.1f}% · '
+            f'7d {top["p7"]:.1f}% · 30d {top["p30"]:.1f}% (cap ${top["cap"]:.0f}/mo)')
+    return head, near, uncapped
+
+
 def per_model_req(since):
     """{canonical_model: api_call_count} for Go traffic since `since`."""
     rows = conn.execute(
@@ -252,6 +379,15 @@ if q:
 r = req_quota_line()
 if r:
     out.append(f'  {r}')
+
+pm = per_model_quota_line()
+if pm:
+    head, near, uncapped = pm
+    out.append(f'  {head}')
+    out.append(near)
+    if uncapped:
+        out.append('  ⚠ no monthly cap known (add to GO_MODEL_MONTHLY): '
+                   + ', '.join(uncapped))
 
 # Kanban board state (durable task queue). Read-only; one line, silent if empty.
 try:
