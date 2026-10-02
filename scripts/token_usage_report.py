@@ -92,7 +92,7 @@ DS_PEAK_TIERS = {
 # Per-model monthly usage limits (USD), verified 2026-09-19. NOTE: the old single
 # pool ($12/5h, $30/7d, $60/30d) is no longer how Go works - each model has its own
 # limit, split 20% / 5h, 50% / 7d, 100% / 30d. Captured here for the meter redesign;
-# NOT yet used by the bucket math below.
+# Not yet used by the LEGACY shared-pool bucket math below.
 GO_MODEL_MONTHLY = {
     'glm-5.3-flash': 60, 'glm-5.3': 15, 'glm-5.2': 60, 'glm-5.1': 60,
     'kimi-k3': 15, 'kimi-k2.7-code': 60, 'kimi-k2.6': 60,
@@ -268,8 +268,8 @@ def per_model_cost(since):
         "GROUP BY model", (since,)).fetchall()
     costs = {}
     for model, c, i, o, r, w in rows:
-        rate = GO_RATES.get(model) or GO_DEFAULT_RATE
         m = MODEL_ALIASES.get(model, model)
+        rate = GO_RATES.get(m) or GO_DEFAULT_RATE
         costs[m] = costs.get(m, 0.0) + (i or 0) / 1e6 * rate[0] \
             + (o or 0) / 1e6 * rate[1] + (r or 0) / 1e6 * rate[2] \
             + (w or 0) / 1e6 * rate[3]
@@ -285,6 +285,8 @@ def per_model_quota_line():
     months = per_model_cost(NOW - 30 * DAY)
     if not months:
         return None
+    h5 = per_model_cost(NOW - 5 * HOUR)
+    d7 = per_model_cost(NOW - 7 * DAY)
     uncapped = []
     lanes = []
     for m, cost in months.items():
@@ -292,13 +294,13 @@ def per_model_quota_line():
         if not cap:
             uncapped.append(m)
             continue
-        h5 = per_model_cost(NOW - 5 * HOUR).get(m, 0.0)
-        d7 = per_model_cost(NOW - 7 * DAY).get(m, 0.0)
+        h5v = h5.get(m, 0.0)
+        d7v = d7.get(m, 0.0)
         lanes.append({
             'model': m, 'cost': cost, 'cap': cap,
             'p30': cost / cap * 100,
-            'p7': d7 / (cap * 0.50) * 100,
-            'p5': h5 / (cap * 0.20) * 100,
+            'p7': d7v / (cap * 0.50) * 100,
+            'p5': h5v / (cap * 0.20) * 100,
         })
     if not lanes:
         return None

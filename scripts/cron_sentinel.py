@@ -52,7 +52,8 @@ def main() -> int:
         elif "no issues" not in body:
             problems.append(body)
     except Exception as exc:  # noqa: BLE001
-        problems.append(f"hermes cron doctor could not run: {exc}")
+        sys.stdout.write(f"cron-sentinel: FATAL - hermes cron doctor could not run: {exc}\n")
+        return 1
 
     # --- 2. removed-job diff against baseline -----------------------------
     try:
@@ -78,7 +79,8 @@ def main() -> int:
         with open(BASELINE, "w", encoding="utf-8") as fh:
             json.dump(current, fh, indent=2, sort_keys=True)
     except Exception as exc:  # noqa: BLE001
-        problems.append(f"cron jobs.json read failed: {exc}")
+        sys.stdout.write(f"cron-sentinel: FATAL - cron jobs.json read failed: {exc}\n")
+        return 1
 
     if problems:
         sys.stdout.write(f"cron-sentinel: {len(problems)} problem(s)\n\n")

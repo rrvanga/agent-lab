@@ -129,6 +129,15 @@ GO_MODEL_MONTHLY = {
     'deepseek-v4-flash': 30, 'deepseek-v4-flash-vision-exp': 15,
     'hy4-preview': 30, 'hy3': 60, 'grok-4.6': 15, 'grok-4.7': 15, 'gpt-5.6-luna': 15, 'gpt-6-luna': 15,
 }
+# Gateway model strings that actually route to the default model (config.yaml aliases).
+MODEL_ALIASES = {
+    'agent-main': 'deepseek-v4-flash',
+    'default': 'deepseek-v4-flash',
+    'pro': 'deepseek-v4-pro',
+    'code': 'kimi-k2.7-code',
+    'glm': 'glm-5.2',
+    'max': 'qwen3.8-max',
+}
 G = []
 unknown = set()
 for span, cap, label in [(5 * 3600, 12.0, '5h'), (7 * DAY, 30.0, '7d'), (30 * DAY, 60.0, '30d')]:
@@ -141,6 +150,7 @@ for span, cap, label in [(5 * 3600, 12.0, '5h'), (7 * DAY, 30.0, '7d'), (30 * DA
         continue
     cost = 0.0
     for model, c, i, o, r, w in rows:
+        model = MODEL_ALIASES.get(model, model)
         rate = GO_RATES.get(model)
         if rate is None:
             unknown.add(model)
@@ -164,8 +174,9 @@ def _pm_costs(span):
         "WHERE billing_base_url LIKE '%opencode.ai/zen/go%' AND last_seen >= ? "
         "GROUP BY model", (NOW - span,)).fetchall()
     for model, c, i, o, r, w in rows:
-        rate = GO_RATES.get(model) or GO_RATES['deepseek-v4-flash']
-        out[model] = out.get(model, 0.0) + (i or 0) / 1e6 * rate[0] \
+        m = MODEL_ALIASES.get(model, model)
+        rate = GO_RATES.get(m) or GO_RATES['deepseek-v4-flash']
+        out[m] = out.get(m, 0.0) + (i or 0) / 1e6 * rate[0] \
             + (o or 0) / 1e6 * rate[1] + (r or 0) / 1e6 * rate[2] \
             + (w or 0) / 1e6 * rate[3]
     return out
