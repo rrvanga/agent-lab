@@ -2,7 +2,16 @@
 """cron_sentinel.py — scheduler health + dormancy sentinel (user pref: 2026-09-05).
 
 SILENT ON NORMAL: empty stdout, exit 0 when everything is healthy.
-LOUD ON ANOMALY: prints findings + exit 1 (cron delivers the message).
+LOUD ON ANOMALY: prints findings + exit 0 (stdout is delivered verbatim for
+no_agent script jobs; see cron/scheduler.py `_run_no_agent_job`).
+
+WHY EXIT 0 ON FINDINGS (fixed 2026-09-14): a no_agent job with a non-zero exit
+is recorded as `last_status: error`, so `hermes cron doctor` then flagged the
+sentinel's own previous run as failed — the next sentinel run embedded that
+nested dump in its output, compounding the alert every day (observed: 6 nested
+levels in one run). Alerting via stdout with exit 0 keeps the Telegram delivery
+while keeping the sentinel's own status healthy. Non-zero exit is reserved for
+the sentinel's OWN hard failure (doctor couldn't run / jobs.json unreadable).
 
 Checks:
   1. Built-in `hermes cron doctor` — failed runs, delivery errors, overdue
@@ -43,7 +52,8 @@ def main() -> int:
         elif "no issues" not in body:
             problems.append(body)
     except Exception as exc:  # noqa: BLE001
-        problems.append(f"hermes cron doctor could not run: {exc}")
+        sys.stdout.write(f"cron-sentinel: FATAL - hermes cron doctor could not run: {exc}\n")
+        return 1
 
     # --- 2. removed-job diff against baseline -----------------------------
     try:
@@ -69,12 +79,15 @@ def main() -> int:
         with open(BASELINE, "w", encoding="utf-8") as fh:
             json.dump(current, fh, indent=2, sort_keys=True)
     except Exception as exc:  # noqa: BLE001
-        problems.append(f"cron jobs.json read failed: {exc}")
+        sys.stdout.write(f"cron-sentinel: FATAL - cron jobs.json read failed: {exc}\n")
+        return 1
 
     if problems:
         sys.stdout.write(f"cron-sentinel: {len(problems)} problem(s)\n\n")
         sys.stdout.write("\n\n".join(problems) + "\n")
-        return 1
+        # Exit 0: see module docstring — stdout is delivered verbatim, and a
+        # non-zero exit would poison this job's own status (doctor self-flag).
+        return 0
     return 0  # silent success — cron delivers nothing
 
 
