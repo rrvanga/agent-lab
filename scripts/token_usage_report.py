@@ -58,25 +58,25 @@ GO_RATES = {
     'qwen3.8-max':      (2.00, 6.00, 0.25, 2.50),     # $15/mo
     'qwen3.8-flash':    (0.15, 0.47, 0.016, 0.20),    # $30/mo, 5400 req/5h
     'qwen3.7-max':      (2.50, 7.50, 0.50, 3.125),    # $30/mo
-    'qwen3.7-plus':     (0.40, 1.60, 0.04, 0.50),     # $60/mo
+    'qwen3.7-plus':     (0.40, 1.60, 0.04, 0.50),     # $60/mo; >256K tokens: 1.20 / 4.80 / 0.12 / 1.50
     'qwen3.6-plus':     (0.50, 3.00, 0.05, 0.625),    # $60/mo
     'qwen3.5-plus':     (0.50, 3.00, 0.05, 0.625),    # GUESS ~ qwen3.6-plus
     'hy3':              (0.14, 0.58, 0.035, 0.0),     # $60/mo
     'hy3-preview':      (0.14, 0.58, 0.035, 0.0),     # GUESS ~ hy3
     'hy4-preview':      (0.834, 2.501, 0.042, 0.0),   # $30/mo
-    'gpt-5.6-luna':     (0.20, 1.20, 0.02, 0.25),     # <=272K tier; $15/mo
-    'gpt-6-luna':       (0.10, 0.50, 0.01, 0.125),    # <=272K tier, verified 09-23 live docs; >272K: 0.20/0.75/0.02; $15/mo
-    'grok-4.6':         (2.00, 6.00, 0.50, 0.0),      # <=200K tier; $15/mo
-    'grok-4.7':         (2.00, 6.00, 0.50, 0.0),      # verified 09-22 live docs; <=200K tier; $15/mo, 169 req/5h
-    'grok-4.5':         (2.00, 6.00, 0.50, 0.0),      # GUESS ~ grok-4.6
+    'gpt-5.6-luna':     (0.20, 1.20, 0.02, 0.25),     # <=272K tier; >272K tokens: 0.40 / 1.80 / 0.04 / 0.50; $15/mo
+    'gpt-6-luna':       (0.10, 0.50, 0.01, 0.125),    # <=272K: 0.10/0.50/0.01/0.125; >272K: 0.20/0.75/0.02/0.25; $15/mo
+    'grok-4.6':         (2.00, 6.00, 0.50, 0.0),      # <=200K tier; >200K tokens: 4.00 / 12.00 / 1.00; $15/mo
+    'grok-4.7':         (2.00, 6.00, 0.50, 0.0),      # verified 09-22 live docs; <=200K tier; >200K tokens: 4.00 / 12.00 / 1.00; $15/mo, 169 req/5h
+    'grok-4.5':         (2.00, 6.00, 0.50, 0.0),      # GUESS ~ grok-4.6; legacy: absent from live catalog 2026-10-06, kept for historical rows
     'omen-alpha':       (0.20, 0.66, 0.04, 0.0),      # promo model, not on the pricing table
     'union-alpha':      (0.20, 0.66, 0.04, 0.0),      # GUESS ~ omen-alpha
     'ox-alpha-free':    (0.0, 0.0, 0.0, 0.0),         # promo free
     'space-bunny-free': (0.0, 0.0, 0.0, 0.0),         # free (limited time), 09-23 docs; also on zen/go paid catalog
     # --- DeepSeek: peak/off-peak blend (see DS_PEAK_TIERS for exact pairs) ---
     'deepseek-v4-flash':            (0.18125, 0.725, 0.003625, 0.0),   # $30/mo, 13000 req/5h
-    'deepseek-v4.1-flash':          (0.18125, 0.725, 0.003625, 0.0),   # 4x promo ENDS 2026-09-20: $60 -> $15/mo
-    'deepseek-flash':               (0.18125, 0.725, 0.003625, 0.0),   # GUESS ~ deepseek-v4-flash
+    'deepseek-v4.1-flash':          (0.18125, 0.725, 0.003625, 0.0),   # $60/mo, 26000 req/5h — verified 2026-10-06 (promo EXTENDED; old note expected drop to $15 on 09-20)
+    'deepseek-flash':               (0.18125, 0.725, 0.003625, 0.0),   # GUESS ~ deepseek-v4-flash; legacy: absent from live catalog 2026-10-06, kept for historical rows
     'deepseek-v4-flash-vision-exp': (0.18125, 0.725, 0.003625, 0.0),   # $15/mo
     'deepseek-v4-pro':              (0.7975, 2.3925, 0.026583, 0.0),   # $15/mo, 1050 req/5h
 }
@@ -89,18 +89,20 @@ DS_PEAK_TIERS = {
     'deepseek-v4-pro':              ((0.66, 1.98, 0.022), (1.32, 3.96, 0.044)),
 }
 
-# Per-model monthly usage limits (USD), verified 2026-09-19. NOTE: the old single
+# Per-model monthly usage limits (USD), verified 2026-10-06. NOTE: the old single
 # pool ($12/5h, $30/7d, $60/30d) is no longer how Go works - each model has its own
 # limit, split 20% / 5h, 50% / 7d, 100% / 30d. Captured here for the meter redesign;
 # Not yet used by the LEGACY shared-pool bucket math below.
+# Go Plus ($40/mo, higher per-model limits) exists; these limits are the base Go $10/mo plan.
 GO_MODEL_MONTHLY = {
-    'glm-5.3-flash': 60, 'glm-5.3': 15, 'glm-5.2': 60, 'glm-5.1': 60,
+    'glm-5.3-flash': 60, 'glm-5.3': 15, 'glm-5.2': 60, 'glm-5.1': 60,  # legacy: absent from live catalog 2026-10-06, kept for historical rows
     'kimi-k3': 15, 'kimi-k2.7-code': 60, 'kimi-k2.6': 60,
     'longcat-2.0': 60, 'mimo-v2.5': 60, 'mimo-v2.5-pro': 15, 'mimo-v2.6-flash': 60, 'mimo-v2.6-pro': 15,
-    'minimax-m3': 60, 'minimax-m2.7': 60, 'minimax-m2.5': 60,
+    'minimax-m3': 60, 'minimax-m2.7': 60, 'minimax-m2.5': 60,  # legacy: absent from live catalog 2026-10-06, kept for historical rows
     'muse-spark-1.3-contributor': 60, 'muse-spark-1.2-contributor': 60,
-    'qwen3.8-max': 15, 'qwen3.8-flash': 30, 'qwen3.7-max': 30,
-    'qwen3.7-plus': 60, 'qwen3.6-plus': 60,
+    'qwen3.8-max': 15, 'qwen3.8-flash': 30, 'qwen3.7-max': 30,  # legacy: absent from live catalog 2026-10-06, kept for historical rows
+    'qwen3.7-plus': 60,  # live 2026-10-06
+    'qwen3.6-plus': 60,  # legacy: absent from live catalog 2026-10-06, kept for historical rows
     'deepseek-v4.1-flash': 60, 'deepseek-v4-pro': 15,
     'deepseek-v4-flash': 30, 'deepseek-v4-flash-vision-exp': 15,
     'hy4-preview': 30, 'hy3': 60, 'grok-4.6': 15, 'grok-4.7': 15, 'gpt-5.6-luna': 15, 'gpt-6-luna': 15,
@@ -135,7 +137,7 @@ PER_MODEL_REQ_CAPS = {
     'qwen3.7-max': 170,
     'qwen3.7-plus': 4300,
     'qwen3.6-plus': 3300,
-    'deepseek-v4.1-flash': 26000,   # 4x promo ENDS 2026-09-20 -> drops to 6500
+    'deepseek-v4.1-flash': 26000,   # $60/mo, 26000 req/5h — verified 2026-10-06 (promo EXTENDED; old note expected drop to 6500)
     'deepseek-v4-pro': 1050,
     'deepseek-v4-flash': 13000,
     'deepseek-v4-flash-vision-exp': 6500,
@@ -143,8 +145,9 @@ PER_MODEL_REQ_CAPS = {
     'hy3': 4300,
     'grok-4.6': 169,
     'grok-4.7': 169,
-    'grok-4.5': 169,                # GUESS ~ grok-4.6 (no doc row)
+    'grok-4.5': 169,                # GUESS ~ grok-4.6 (no doc row); legacy: absent from live catalog 2026-10-06, kept for historical rows
     'gpt-5.6-luna': 2050,
+    'gpt-6-luna': 4230,
 }
 # Gateway model strings that actually route to the default model (config.yaml aliases).
 MODEL_ALIASES = {
