@@ -96,7 +96,8 @@ GO_RATES = {
     'omen-alpha':       (0.20, 0.66, 0.04, 0.0),      # promo model, not on the pricing table
     'union-alpha':      (0.20, 0.66, 0.04, 0.0),      # GUESS ~ omen-alpha
     'ox-alpha-free':    (0.0, 0.0, 0.0, 0.0),         # promo free
-    'space-bunny-free': (0.0, 0.0, 0.0, 0.0),         # free (limited time), 09-23 docs; also on zen/go paid catalog
+    'space-bunny-free': (0.0, 0.0, 0.0, 0.0),         # legacy: absent from live catalog 2026-10-07, kept for historical rows (superseded by paid 'space-bunny')
+    'space-bunny':      (0.15, 0.60, 0.03, 0.0),      # PAID, live 2026-10-07 docs: $0.15 in / $0.60 out / $0.03 cache-read per M; $30/mo; 3130 req/5h
     # --- DeepSeek: peak/off-peak blend (see DS_PEAK_TIERS for exact pairs) ---
     'deepseek-v4-flash':            (0.18125, 0.725, 0.003625, 0.0),   # $30/mo, 13000 req/5h
     'deepseek-v4.1-flash':          (0.18125, 0.725, 0.003625, 0.0),   # $60/mo, 26000 req/5h — verified 2026-10-06 (promo EXTENDED; old note expected drop to $15 on 09-20)
@@ -133,6 +134,7 @@ GO_MODEL_MONTHLY = {
     'deepseek-v4.1-flash': 60, 'deepseek-v4-pro': 15,
     'deepseek-v4-flash': 30, 'deepseek-v4-flash-vision-exp': 15,
     'hy4-preview': 30, 'hy3': 60, 'grok-4.6': 15, 'grok-4.7': 15, 'gpt-5.6-luna': 15, 'gpt-6-luna': 15,
+    'space-bunny': 30,  # live 2026-10-07: $30/mo (base Go), 3130 req/5h
 }
 # Gateway model strings that actually route to the default model (config.yaml aliases).
 MODEL_ALIASES = {
@@ -189,9 +191,11 @@ def _pm_costs(span):
 
 _c30, _c7, _c5 = _pm_costs(30 * DAY), _pm_costs(7 * DAY), _pm_costs(5 * 3600)
 lanes = []
+_uncapped = []
 for model, cost in _c30.items():
     cap = GO_MODEL_MONTHLY.get(model)
     if not cap:
+        _uncapped.append(model)
         continue
     p5 = _c5.get(model, 0.0) / (cap * 0.20) * 100
     p7 = _c7.get(model, 0.0) / (cap * 0.50) * 100
@@ -205,4 +209,6 @@ if lanes:
     flag = '🔴' if worst >= 80 else ('⚠️' if worst >= 50 else '·')
     print(f'{flag} nearest ceiling: {m} — 5h {p5:.1f}% | 7d {p7:.1f}% | 30d {p30:.1f}% '
           f'(cap ${cap:.0f}/mo)')
+if _uncapped:
+    print('⚠ no monthly cap known (add to GO_MODEL_MONTHLY): ' + ', '.join(sorted(_uncapped)))
 conn.close()

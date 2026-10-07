@@ -72,7 +72,8 @@ GO_RATES = {
     'omen-alpha':       (0.20, 0.66, 0.04, 0.0),      # promo model, not on the pricing table
     'union-alpha':      (0.20, 0.66, 0.04, 0.0),      # GUESS ~ omen-alpha
     'ox-alpha-free':    (0.0, 0.0, 0.0, 0.0),         # promo free
-    'space-bunny-free': (0.0, 0.0, 0.0, 0.0),         # free (limited time), 09-23 docs; also on zen/go paid catalog
+    'space-bunny-free': (0.0, 0.0, 0.0, 0.0),         # legacy: absent from live catalog 2026-10-07, kept for historical rows (superseded by paid 'space-bunny')
+    'space-bunny':      (0.15, 0.60, 0.03, 0.0),      # PAID, live 2026-10-07 docs: $0.15 in / $0.60 out / $0.03 cache-read per M; $30/mo; 3130 req/5h
     # --- DeepSeek: peak/off-peak blend (see DS_PEAK_TIERS for exact pairs) ---
     'deepseek-v4-flash':            (0.18125, 0.725, 0.003625, 0.0),   # $30/mo, 13000 req/5h
     'deepseek-v4.1-flash':          (0.18125, 0.725, 0.003625, 0.0),   # $60/mo, 26000 req/5h — verified 2026-10-06 (promo EXTENDED; old note expected drop to $15 on 09-20)
@@ -109,6 +110,7 @@ GO_MODEL_MONTHLY = {
     'deepseek-v4.1-flash': 60, 'deepseek-v4-pro': 15,
     'deepseek-v4-flash': 30, 'deepseek-v4-flash-vision-exp': 15,
     'hy4-preview': 30, 'hy3': 60, 'grok-4.6': 15, 'grok-4.7': 15, 'gpt-5.6-luna': 15, 'gpt-6-luna': 15,
+    'space-bunny': 30,  # live 2026-10-07: $30/mo (base Go), 3130 req/5h
 }
 GO_CAPS = [(5 * HOUR, 12.0), (7 * DAY, 30.0), (30 * DAY, 60.0)]
 GO_DEFAULT_RATE = GO_RATES['deepseek-v4-flash']  # unknown models: priced cheap AND reported
@@ -151,6 +153,7 @@ PER_MODEL_REQ_CAPS = {
     'grok-4.5': 169,                # GUESS ~ grok-4.6 (no doc row); legacy: absent from live catalog 2026-10-06, kept for historical rows
     'gpt-5.6-luna': 2050,
     'gpt-6-luna': 4230,
+    'space-bunny': 3130,            # live 2026-10-07, base-Go estimated-requests table
 }
 # Gateway model strings that actually route to the default model (config.yaml aliases).
 MODEL_ALIASES = {
@@ -337,20 +340,26 @@ def per_model_req(since):
 
 
 def req_quota_line():
-    """Per-model req/5h burn vs caps, plus a one-line recommendation."""
+    """Per-model req/5h burn vs caps, plus a one-line recommendation.
+
+    Returns (line, uncapped): uncapped lists the models whose 5h request burn
+    would otherwise be silently dropped for lack of a PER_MODEL_REQ_CAPS entry.
+    """
     burn = per_model_req(NOW - 5 * HOUR)
     if not burn:
-        return None
+        return None, []
     shown = []
+    uncapped = []
     for m, c in sorted(burn.items(),
                        key=lambda kv: -(kv[1] / PER_MODEL_REQ_CAPS.get(kv[0], 1))):
         cap = PER_MODEL_REQ_CAPS.get(m)
         if not cap:
+            uncapped.append(m)
             continue
         pct = c / cap * 100
         shown.append(f'{m}: {c}/{cap} ({pct:.0f}%)')
     if not shown:
-        return None
+        return None, sorted(uncapped)
     dp = burn.get(DEFAULT_MODEL, 0) / PER_MODEL_REQ_CAPS[DEFAULT_MODEL] * 100
     cp = burn.get(CRON_MODEL, 0) / PER_MODEL_REQ_CAPS[CRON_MODEL] * 100
     pp = burn.get('deepseek-v4-pro', 0) / PER_MODEL_REQ_CAPS['deepseek-v4-pro'] * 100
@@ -362,7 +371,7 @@ def req_quota_line():
         rec = f'pro at {pp:.0f}% — use flash for bulk'
     else:
         rec = f'no change (flash {dp:.0f}%, pro {pp:.0f}%)'
-    return 'Req/5h: ' + ', '.join(shown) + f' → {rec}'
+    return 'Req/5h: ' + ', '.join(shown) + f' → {rec}', sorted(uncapped)
 
 
 out = [f'📊 Token usage · {ts(NOW)}']
@@ -384,9 +393,12 @@ if q:
     if unknown:
         out.append(f'  ⚠ unknown models priced at flash rate (update GO_RATES): {", ".join(unknown)}')
 
-r = req_quota_line()
+r, r_uncapped = req_quota_line()
 if r:
     out.append(f'  {r}')
+if r_uncapped:
+    out.append('  ⚠ no req/5h cap known (add to PER_MODEL_REQ_CAPS): '
+               + ', '.join(r_uncapped))
 
 pm = per_model_quota_line()
 if pm:
