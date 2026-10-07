@@ -119,12 +119,15 @@ DS_PEAK_TIERS = {
 # legacy pool line for continuity; the per-model read-out at the end uses THIS table.
 # Go Plus ($40/mo, higher per-model limits) exists; these limits are the base Go $10/mo plan.
 GO_MODEL_MONTHLY = {
-    'glm-5.3-flash': 60, 'glm-5.3': 15, 'glm-5.2': 60, 'glm-5.1': 60,  # legacy: absent from live catalog 2026-10-06, kept for historical rows
+    'glm-5.3-flash': 60, 'glm-5.3': 15, 'glm-5.2': 60,
+    'glm-5.1': 60,  # legacy: absent from live catalog 2026-10-06, kept for historical rows
     'kimi-k3': 15, 'kimi-k2.7-code': 60, 'kimi-k2.6': 60,
     'longcat-2.0': 60, 'mimo-v2.5': 60, 'mimo-v2.5-pro': 15, 'mimo-v2.6-flash': 60, 'mimo-v2.6-pro': 15,
-    'minimax-m3': 60, 'minimax-m2.7': 60, 'minimax-m2.5': 60,  # legacy: absent from live catalog 2026-10-06, kept for historical rows
+    'minimax-m3': 60, 'minimax-m2.7': 60,
+    'minimax-m2.5': 60,  # legacy: absent from live catalog 2026-10-06, kept for historical rows
     'muse-spark-1.3-contributor': 60, 'muse-spark-1.2-contributor': 60,
-    'qwen3.8-max': 15, 'qwen3.8-flash': 30, 'qwen3.7-max': 30,  # legacy: absent from live catalog 2026-10-06, kept for historical rows
+    'qwen3.8-max': 15, 'qwen3.8-flash': 30,
+    'qwen3.7-max': 30,  # legacy: absent from live catalog 2026-10-06, kept for historical rows
     'qwen3.7-plus': 60,  # live 2026-10-06
     'qwen3.6-plus': 60,  # legacy: absent from live catalog 2026-10-06, kept for historical rows
     'deepseek-v4.1-flash': 60, 'deepseek-v4-pro': 15,
