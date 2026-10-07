@@ -57,6 +57,7 @@ print(f'Totals: {tot[0]} sessions | {tot[1]} msgs | {tot[2]} tool calls | '
 # is neither optimistic nor inflated. Exact pairs are in DS_PEAK_TIERS.
 GO_RATES = {
     # --- non-tiered, verified 2026-09-19 ---
+    'claude-haiku-5-5': (1.00, 5.00, 0.10, 1.25),     # GUESS ~ Anthropic public Claude Haiku 4.5 rate; new paid 10-07, no row on live pricing table
     'glm-5.3-flash':    (0.15, 0.50, 0.03, 0.0),      # $60/mo, 6320 req/5h
     'glm-5.3':          (1.40, 4.40, 0.26, 0.0),      # $15/mo, only 220 req/5h
     'glm-5.2':          (1.40, 4.40, 0.26, 0.0),      # $60/mo
