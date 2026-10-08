@@ -57,7 +57,7 @@ print(f'Totals: {tot[0]} sessions | {tot[1]} msgs | {tot[2]} tool calls | '
 # is neither optimistic nor inflated. Exact pairs are in DS_PEAK_TIERS.
 GO_RATES = {
     # --- non-tiered, verified 2026-09-19 ---
-    'claude-haiku-5-5': (1.00, 5.00, 0.10, 1.25),     # GUESS ~ Anthropic public Claude Haiku 4.5 rate; new paid 10-07, no row on live pricing table
+    'claude-haiku-5-5': (0.10, 0.50, 0.01, 0.125),    # VERIFIED 2026-10-08 live Go docs: ≤100K tier; >100K: 0.50/2.50/0.05/0.625; $15/mo, 3850 req/5h
     'glm-5.3-flash':    (0.15, 0.50, 0.03, 0.0),      # $60/mo, 6320 req/5h
     'glm-5.3':          (1.40, 4.40, 0.26, 0.0),      # $15/mo, only 220 req/5h
     'glm-5.2':          (1.40, 4.40, 0.26, 0.0),      # $60/mo
@@ -136,6 +136,7 @@ GO_MODEL_MONTHLY = {
     'deepseek-v4-flash': 30, 'deepseek-v4-flash-vision-exp': 15,
     'hy4-preview': 30, 'hy3': 60, 'grok-4.6': 15, 'grok-4.7': 15, 'gpt-5.6-luna': 15, 'gpt-6-luna': 15,
     'space-bunny': 30,  # live 2026-10-08 Go: $30/mo (base Go), 3130 req/5h; Zen free 'space-bunny-free' has no monthly cap
+    'claude-haiku-5-5': 15,  # live 2026-10-08: $15/mo (base Go), 3850 req/5h
 }
 # Gateway model strings that actually route to the default model (config.yaml aliases).
 MODEL_ALIASES = {
