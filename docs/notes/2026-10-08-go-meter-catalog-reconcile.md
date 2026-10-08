@@ -1,38 +1,43 @@
-# 2026-10-08 — Go meter: Space Bunny reconcile to live catalog (issue #34, PR #35)
+# 2026-10-08 — Go meter: Space Bunny comment pin to verified live state (issue #34, PR #35)
 
 ## Summary
-The OpenCode Go catalog **flip-flopped** vs the 10-07 snapshot (issue #32): the
-live page fetched 2026-10-08 lists **only "Space Bunny Free"** (endpoint
-`space-bunny-free`, Free, Unlimited, limited-time promo) — the **paid
-`space-bunny` row verified 10-07 is NOT on today's page**. Reconcile = comment-only
-flip in both meter copies: free row marked LIVE, paid row marked legacy.
+Docs pages are **not stable day-to-day or even hour-to-hour**. This run's first
+premise — "docs/go reverted to Space Bunny Free, paid row gone" — came from a
+single cached 09:00 fetch. The MOA gate's cache-busted re-fetch (~09:35 PT)
+disproved it: **docs/go currently lists PAID Space Bunny** (id `space-bunny`,
+`zen/go/v1`, $0.15/$0.60/$0.03 per M, $30/mo, 3,130 req/5h) and **docs/zen lists
+Space Bunny Free** (id `space-bunny-free`, `zen/v1`) as a free stealth model.
+Gate verdict: CHANGES REQUESTED → first patch reverted, comments re-pinned to the
+verified state.
 
-## Changes (implemented via `opencode run` ×2, one-shot, `-f` spec file)
-1. `space-bunny-free` → **LIVE 2026-10-08** (limited-time FREE promo; endpoint
-   `space-bunny-free`, Free/Unlimited); its rates (0.0 ×4) were already correct.
-2. `space-bunny` (paid, 10-07) → **legacy**: paid row from 2026-10-07 docs, NOT on
-   live catalog 2026-10-08 (page reverted to free promo); kept for historical rows
-   — mirrors existing `grok-4.5` / `deepseek-flash` legacy convention.
-3. `GO_MODEL_MONTHLY` + `PER_MODEL_REQ_CAPS` entries → legacy 10-07 comments, caps
-   preserved (3130 req/5h, $30/mo).
-Files: `scripts/token_usage_report.py` (4 comment lines) + `scripts/morning_context.py`
-(3 comment lines). Zero numeric/logic changes.
+## Changes (implemented via `opencode run` one-shot, `-f` spec; comment-only)
+1. `space-bunny` (paid) → **LIVE 2026-10-08 Go docs**, comment pins price/cap/endpoint
+   (`zen/go/v1`); rates (0.15/0.60/0.03) and caps (30/mo, 3130 req/5h) unchanged.
+2. `space-bunny-free` → **free Zen stealth model** (docs/zen id, base `zen/v1` per
+   `~/.hermes/config.yaml` routing); $0 rates kept; no Go attribution.
+3. `GO_MODEL_MONTHLY` + `PER_MODEL_REQ_CAPS` comments → live 10-08 Go reading, with the
+   Zen-free no-cap caveat.
+Files: `scripts/token_usage_report.py` (4 lines) + `scripts/morning_context.py` (3 lines).
 
 ## Verification
-- `py_compile` both scripts ✓ · `git diff --check` ✓
-- `token_usage_report.py` runtime exit 0 — Go quota 5h 1.8% / 7d 5.4% / 30d 14.7%.
-- state.db lanes: real usage only under `space-bunny-free` (1 msg, tiny → $0 correct).
-- MOA gate: VERDICT via `hermes chat -Q -q … -m moa:default` (see PR #35 conversation).
+- Original wrong patch: MOA gate rejected with a cache-busted fetch (docs/go + docs/zen)
+  + local evidence (`config.yaml:16` routes `space-bunny-free` → `zen/v1`; state.db has a
+  `space-bunny-free` usage lane, no `space-bunny` lane). Values in the 10-07 commit were
+  already correct — the gate's block was right.
+- Corrected patch: `py_compile` both ✓ · `git diff --check` ✓ · `token_usage_report.py`
+  runtime exit 0 (Go quota 5h 1.8% / 7d 5.4% / 30d 14.7%) · only 7 comment lines changed.
+- Second MOA pass: VERDICT in PR #35 conversation.
 
 ## Learnings
-- **The Go catalog page flip-flops between days**: Space Bunny was free (≤10-06),
-  paid on 10-07, free again 10-08. Always verify against today's live/cached page —
-  a prior commit's catalog state is not authoritative, and per-day comments must
-  carry the snapshot date so flips are recognizable.
-- **`rm` is lifecycle-guarded in cron mode** — the stale-tmp cleanup lesson from
-  08-13 can't be run as `rm -f`; use unique per-run `/tmp` paths (e.g.
-  `moa_review_issue34.*`) instead, which sidesteps both the guard and stale
-  file collisions.
-- **`opencode run` arg order matters**: message positional FIRST, `-f <spec>` after;
-  "File not found: <message>" means the parser took the positional as a path
-  (option-before-positional + trailing message failed in 1.18.19).
+- **A single cached snapshot is not truth for the Go meter**: docs/go listed
+  "Space Bunny Free" at 09:00 and paid "Space Bunny" at 09:35 — flip-flopping within
+  the hour, and the free bunny is a *Zen* model anyway (`config.yaml` routes it to
+  `zen/v1`). Before touching rate tables, cross-check with a cache-busted fetch +
+  page identity (URL/title) + local config routing. One stale cache nearly shipped a
+  wrong-priced meter.
+- **The MOA gate earns its keep as the false-premise catcher**: its independent
+  re-fetch of the source pages is stronger evidence than the branch's own commit
+  narrative. When the gate and the branch disagree about *external* facts, re-verify
+  live, don't argue from cache.
+- **Keep legacy-row semantics strict**: in these tables `legacy` means "absent from
+  the live catalog"; a live row must never be marked legacy because of a stale cache.

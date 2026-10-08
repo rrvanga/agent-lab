@@ -73,8 +73,8 @@ GO_RATES = {
     'omen-alpha':       (0.20, 0.66, 0.04, 0.0),      # promo model, not on the pricing table
     'union-alpha':      (0.20, 0.66, 0.04, 0.0),      # GUESS ~ omen-alpha
     'ox-alpha-free':    (0.0, 0.0, 0.0, 0.0),         # promo free
-    'space-bunny-free': (0.0, 0.0, 0.0, 0.0),         # LIVE 2026-10-08 (limited-time FREE promo; endpoint space-bunny-free, Free/Unlimited); 10-07 snapshot showed paid-only, page reverted.
-    'space-bunny':      (0.15, 0.60, 0.03, 0.0),      # legacy: paid row from 2026-10-07 docs, NOT on live catalog 2026-10-08 (page reverted to free promo); kept for historical rows
+    'space-bunny-free': (0.0, 0.0, 0.0, 0.0),         # free Zen stealth model (docs/zen id 'space-bunny-free', base https://opencode.ai/zen/v1; free for limited time); kept for historical/Zen lanes
+    'space-bunny':      (0.15, 0.60, 0.03, 0.0),      # PAID, live 2026-10-08 Go docs: $0.15 in / $0.60 out / $0.03 cache-read per M; $30/mo; 3130 req/5h; id 'space-bunny' @ zen/go/v1
     # --- DeepSeek: peak/off-peak blend (see DS_PEAK_TIERS for exact pairs) ---
     'deepseek-v4-flash':            (0.18125, 0.725, 0.003625, 0.0),   # $30/mo, 13000 req/5h
     'deepseek-v4.1-flash':          (0.18125, 0.725, 0.003625, 0.0),   # $60/mo, 26000 req/5h — verified 2026-10-06 (promo EXTENDED; old note expected drop to $15 on 09-20)
@@ -111,7 +111,7 @@ GO_MODEL_MONTHLY = {
     'deepseek-v4.1-flash': 60, 'deepseek-v4-pro': 15,
     'deepseek-v4-flash': 30, 'deepseek-v4-flash-vision-exp': 15,
     'hy4-preview': 30, 'hy3': 60, 'grok-4.6': 15, 'grok-4.7': 15, 'gpt-5.6-luna': 15, 'gpt-6-luna': 15,
-    'space-bunny': 30,  # legacy 2026-10-07: $30/mo (base Go), 3130 req/5h (live bunny today = Space Bunny Free, free/unlimited, no monthly cap needed)
+    'space-bunny': 30,  # live 2026-10-08 Go: $30/mo (base Go), 3130 req/5h; Zen free 'space-bunny-free' has no monthly cap
 }
 GO_CAPS = [(5 * HOUR, 12.0), (7 * DAY, 30.0), (30 * DAY, 60.0)]
 GO_DEFAULT_RATE = GO_RATES['deepseek-v4-flash']  # unknown models: priced cheap AND reported
@@ -154,7 +154,7 @@ PER_MODEL_REQ_CAPS = {
     'grok-4.5': 169,                # GUESS ~ grok-4.6 (no doc row); legacy: absent from live catalog 2026-10-06, kept for historical rows
     'gpt-5.6-luna': 2050,
     'gpt-6-luna': 4230,
-    'space-bunny': 3130,            # legacy 2026-10-07, base-Go estimated-requests table (live bunny today = free, unlimited requests)
+    'space-bunny': 3130,            # live 2026-10-08, base-Go estimated-requests table
 }
 # Gateway model strings that actually route to the default model (config.yaml aliases).
 MODEL_ALIASES = {
