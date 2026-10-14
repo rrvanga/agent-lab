@@ -77,15 +77,16 @@ else
   fail "script missing from HERMES -> ERROR: + exit 1 (rc=$RC, out=$OUT)"
 fi
 
-# --- scenario D: content differs -> WARN:, exit 0 ---------------------------
+# --- scenario D: content differs -> WARN:, exit 3 ---------------------------
 write_jobs '[{"script": "fixture_diff.sh"}]'
 printf '%s\n' '#!/usr/bin/env bash' 'echo v1' > "$REPO/fixture_diff.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'echo v2' > "$HERMES_SCRIPTS/fixture_diff.sh"
 capture
-if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q "WARN: fixture_diff.sh content differs"; then
-  pass "content diff -> WARN: + exit 0"
+if [ "$RC" -eq 3 ] && printf '%s' "$OUT" | grep -q "WARN: fixture_diff.sh content differs" \
+    && printf '%s' "$OUT" | grep -q "fix: scripts/check-ops-drift.sh --reconcile"; then
+  pass "content diff -> WARN: + fix: + exit 3"
 else
-  fail "content diff -> WARN: + exit 0 (rc=$RC, out=$OUT)"
+  fail "content diff -> WARN: + fix: + exit 3 (rc=$RC, out=$OUT)"
 fi
 
 # --- scenario E: --quiet suppresses INFO lines ------------------------------
@@ -94,6 +95,70 @@ if printf '%s' "$OUT" | grep -q "^INFO:"; then
   fail "--quiet suppresses INFO lines (out=$OUT)"
 else
   pass "--quiet suppresses INFO lines"
+fi
+
+# --- scenario G: --help -> exit 0 and documents exit codes -------------------
+capture --help
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q "3   content drift"; then
+  pass "--help -> exit 0 + exit-code table"
+else
+  fail "--help -> exit 0 + exit-code table (rc=$RC, out=$OUT)"
+fi
+
+# --- scenario H: reconcile requires an explicit direction -------------------
+write_jobs '[{"script": "fixture_diff.sh"}]'
+repo_before="$(<"$REPO/fixture_diff.sh")"
+hermes_before="$(<"$HERMES_SCRIPTS/fixture_diff.sh")"
+capture --reconcile
+if [ "$RC" -eq 64 ] && [ "$(<"$REPO/fixture_diff.sh")" = "$repo_before" ] \
+    && [ "$(<"$HERMES_SCRIPTS/fixture_diff.sh")" = "$hermes_before" ]; then
+  pass "reconcile without --toward -> exit 64 + unchanged fixtures"
+else
+  fail "reconcile without --toward -> exit 64 + unchanged fixtures (rc=$RC, out=$OUT)"
+fi
+
+# --- scenario I: reconcile deployed dry run ---------------------------------
+capture --reconcile --toward=deployed
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q "PLAN: cp" \
+    && ! cmp -s "$REPO/fixture_diff.sh" "$HERMES_SCRIPTS/fixture_diff.sh"; then
+  pass "reconcile toward deployed dry run -> PLAN: + unchanged deployed"
+else
+  fail "reconcile toward deployed dry run -> PLAN: + unchanged deployed (rc=$RC, out=$OUT)"
+fi
+
+# --- scenario J: reconcile deployed apply -----------------------------------
+capture --reconcile --toward=deployed --apply
+if [ "$RC" -eq 0 ] && cmp -s "$REPO/fixture_diff.sh" "$HERMES_SCRIPTS/fixture_diff.sh"; then
+  capture
+  if [ "$RC" -eq 0 ]; then
+    pass "reconcile toward deployed apply -> equal + plain exit 0"
+  else
+    fail "reconcile toward deployed apply -> plain exit 0 (rc=$RC, out=$OUT)"
+  fi
+else
+  fail "reconcile toward deployed apply -> equal + plain exit 0 (rc=$RC, out=$OUT)"
+fi
+
+# --- scenario K: reconcile repo apply ---------------------------------------
+capture --reconcile --toward=repo --apply
+if [ "$RC" -eq 0 ] && cmp -s "$REPO/fixture_diff.sh" "$HERMES_SCRIPTS/fixture_diff.sh"; then
+  capture
+  if [ "$RC" -eq 0 ]; then
+    pass "reconcile toward repo apply -> equal + plain exit 0"
+  else
+    fail "reconcile toward repo apply -> plain exit 0 (rc=$RC, out=$OUT)"
+  fi
+else
+  fail "reconcile toward repo apply -> equal + plain exit 0 (rc=$RC, out=$OUT)"
+fi
+
+# --- scenario L: no drift with apply -> informational exit 0 ----------------
+write_jobs '[{"script": "fixture_ok.sh"}]'
+capture --reconcile --toward=deployed --apply
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q "INFO: no content drift; nothing to reconcile"; then
+  pass "no drift reconcile apply -> INFO: + exit 0"
+else
+  fail "no drift reconcile apply -> INFO: + exit 0 (rc=$RC, out=$OUT)"
 fi
 
 # --- scenario F: unreadable jobs.json -> exit 2 -----------------------------

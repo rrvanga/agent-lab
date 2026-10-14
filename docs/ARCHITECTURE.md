@@ -56,7 +56,7 @@
 | skillspector weekly delta watch | Mon 09:00 | no_agent | `skillspector_watch.sh` |
 | autonomy-window | 14:30 daily | agent | autonomous work block |
 
-**Scripts are versioned in this repo (`scripts/`) and deployed to `~/.hermes/scripts/`** (cron accepts bare filenames only, resolved inside that dir). `scripts/check-ops-drift.sh` verifies every cron-referenced script exists in both places and flags content drift — run it after any live script edit.
+**Scripts are versioned in this repo (`scripts/`) and deployed to `~/.hermes/scripts/`** (cron accepts bare filenames only, resolved inside that dir). `scripts/check-ops-drift.sh` verifies every cron-referenced script exists in both places and flags content drift — run it after any live script edit; content drift exits non-zero (3), and `--reconcile --toward=repo|deployed [--apply]` performs an explicit, dry-run-by-default repair.
 
 ## 5. Skills & memory
 

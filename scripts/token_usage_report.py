@@ -34,6 +34,8 @@ HOUR = 3600
 GO_RATES = {
     # --- non-tiered, verified 2026-09-19 ---
     'claude-haiku-5-5': (0.10, 0.50, 0.01, 0.125),    # VERIFIED 2026-10-08 live Go docs: ≤100K tier; >100K: 0.50/2.50/0.05/0.625; $15/mo, 3850 req/5h
+    'gemini-4-argon-contributor': (0.10, 0.20, 0.002, 0.0),  # GUESS ~ muse-spark-1.3-contributor (contributor tier = discounted for training rights); NEW on Go paid catalog 2026-10-14, absent from docs pricing table
+    'ling-3.1-flash-free': (0.0, 0.0, 0.0, 0.0),      # free; legacy: removed from free/zen catalog 2026-10-14, kept for historical rows
     'glm-5.3-flash':    (0.15, 0.50, 0.03, 0.0),      # $60/mo, 6320 req/5h
     'glm-5.3':          (1.40, 4.40, 0.26, 0.0),      # $15/mo, only 220 req/5h
     'glm-5.2':          (1.40, 4.40, 0.26, 0.0),      # $60/mo
