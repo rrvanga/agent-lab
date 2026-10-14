@@ -103,7 +103,7 @@ GO_RATES = {
     'space-bunny':      (0.15, 0.60, 0.03, 0.0),      # PAID, live 2026-10-08 Go docs: $0.15 in / $0.60 out / $0.03 cache-read per M; $30/mo; 3130 req/5h; id 'space-bunny' @ zen/go/v1
     # --- DeepSeek: peak/off-peak blend (see DS_PEAK_TIERS for exact pairs) ---
     'deepseek-v4-flash':            (0.18125, 0.725, 0.003625, 0.0),   # $30/mo, 13000 req/5h
-    'deepseek-v4.1-flash':          (0.18125, 0.725, 0.003625, 0.0),   # $60/mo, 26000 req/5h — verified 2026-10-06 (promo EXTENDED; old note expected drop to $15 on 09-20)
+    'deepseek-v4.1-flash':          (0.18125, 0.725, 0.003625, 0.0),   # $80/mo, 34,670 req/5h — re-verified 2026-10-14 from opencode.ai/docs/go (base Go monthly limit $80); peak 01:00-04:00 & 06:00-10:00 UTC Mon-Fri, everything else off-peak
     'deepseek-flash':               (0.18125, 0.725, 0.003625, 0.0),   # GUESS ~ deepseek-v4-flash; legacy: absent from live catalog 2026-10-06, kept for historical rows
     'deepseek-v4-flash-vision-exp': (0.18125, 0.725, 0.003625, 0.0),   # $15/mo
     'deepseek-v4-pro':              (0.7975, 2.3925, 0.026583, 0.0),   # $15/mo, 1050 req/5h
@@ -134,7 +134,7 @@ GO_MODEL_MONTHLY = {
     'qwen3.7-max': 30,  # legacy: absent from live catalog 2026-10-06, kept for historical rows
     'qwen3.7-plus': 60,  # live 2026-10-06
     'qwen3.6-plus': 60,  # legacy: absent from live catalog 2026-10-06, kept for historical rows
-    'deepseek-v4.1-flash': 60, 'deepseek-v4-pro': 15,
+    'deepseek-v4.1-flash': 80, 'deepseek-v4-pro': 15,
     'deepseek-v4-flash': 30, 'deepseek-v4-flash-vision-exp': 15,
     'hy4-preview': 30, 'hy3': 60, 'grok-4.6': 15, 'grok-4.7': 15, 'gpt-5.6-luna': 15, 'gpt-6-luna': 15,
     'space-bunny': 30,  # live 2026-10-08 Go: $30/mo (base Go), 3130 req/5h; Zen free 'space-bunny-free' has no monthly cap
@@ -142,8 +142,8 @@ GO_MODEL_MONTHLY = {
 }
 # Gateway model strings that actually route to the default model (config.yaml aliases).
 MODEL_ALIASES = {
-    'agent-main': 'deepseek-v4-flash',
-    'default': 'deepseek-v4-flash',
+    'agent-main': 'deepseek-v4.1-flash',
+    'default': 'deepseek-v4.1-flash',
     'pro': 'deepseek-v4-pro',
     'code': 'kimi-k2.7-code',
     'glm': 'glm-5.2',
