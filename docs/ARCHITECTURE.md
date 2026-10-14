@@ -22,7 +22,7 @@
 
 | Alias | Model | Provider | Notes |
 |---|---|---|---|
-| default | deepseek-v4-flash | opencode-go (`https://opencode.ai/zen/go/v1`, key `OPENCODE_GO_API_KEY`) | subscription, zero cost; primary |
+| default | deepseek-v4.1-flash | opencode-go (`https://opencode.ai/zen/go/v1`, key `OPENCODE_GO_API_KEY`) | subscription, zero cost; primary (switched from deepseek-v4-flash 2026-10-14) |
 | pro | deepseek-v4-pro | opencode-go | /model alias |
 | code | kimi-k2.7-code | opencode-go | /model alias |
 | glm | glm-5.2 | opencode-go | /model alias |
