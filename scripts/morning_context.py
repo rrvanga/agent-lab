@@ -96,8 +96,10 @@ GO_RATES = {
     'grok-4.5':         (2.00, 6.00, 0.50, 0.0),      # GUESS ~ grok-4.6; legacy: absent from live catalog 2026-10-06, kept for historical rows
     'omen-alpha':       (0.20, 0.66, 0.04, 0.0),      # promo model, not on the pricing table
     'union-alpha':      (0.20, 0.66, 0.04, 0.0),      # GUESS ~ omen-alpha
-    'ox-alpha-free':    (0.0, 0.0, 0.0, 0.0),         # promo free
+    'cat-jam-free':     (0.0, 0.0, 0.0, 0.0),   # free Zen model (new 10-13, paid39/zen85); FreeTierError 403 outside OpenCode client
+    'ox-alpha-free':    (0.0, 0.0, 0.0, 0.0),   # promo free
     'space-bunny-free': (0.0, 0.0, 0.0, 0.0),         # free Zen stealth model (docs/zen id 'space-bunny-free', base https://opencode.ai/zen/v1; free for limited time); kept for historical/Zen lanes
+    'step-5-preview-free': (0.0, 0.0, 0.0, 0.0),      # free preview 10-08; gated 403 outside OpenCode; also on zen/go paid catalog
     'space-bunny':      (0.15, 0.60, 0.03, 0.0),      # PAID, live 2026-10-08 Go docs: $0.15 in / $0.60 out / $0.03 cache-read per M; $30/mo; 3130 req/5h; id 'space-bunny' @ zen/go/v1
     # --- DeepSeek: peak/off-peak blend (see DS_PEAK_TIERS for exact pairs) ---
     'deepseek-v4-flash':            (0.18125, 0.725, 0.003625, 0.0),   # $30/mo, 13000 req/5h
