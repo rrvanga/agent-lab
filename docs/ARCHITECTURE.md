@@ -22,7 +22,7 @@
 
 | Alias | Model | Provider | Notes |
 |---|---|---|---|
-| default | deepseek-v4-flash | opencode-go (`https://opencode.ai/zen/go/v1`, key `OPENCODE_GO_API_KEY`) | subscription, zero cost; primary |
+| default | deepseek-v4.1-flash | opencode-go (`https://opencode.ai/zen/go/v1`, key `OPENCODE_GO_API_KEY`) | subscription, zero cost; primary (switched from deepseek-v4-flash 2026-10-14) |
 | pro | deepseek-v4-pro | opencode-go | /model alias |
 | code | kimi-k2.7-code | opencode-go | /model alias |
 | glm | glm-5.2 | opencode-go | /model alias |
@@ -56,7 +56,7 @@
 | skillspector weekly delta watch | Mon 09:00 | no_agent | `skillspector_watch.sh` |
 | autonomy-window | 14:30 daily | agent | autonomous work block |
 
-**Scripts are versioned in this repo (`scripts/`) and deployed to `~/.hermes/scripts/`** (cron accepts bare filenames only, resolved inside that dir). `scripts/check-ops-drift.sh` verifies every cron-referenced script exists in both places and flags content drift — run it after any live script edit.
+**Scripts are versioned in this repo (`scripts/`) and deployed to `~/.hermes/scripts/`** (cron accepts bare filenames only, resolved inside that dir). `scripts/check-ops-drift.sh` verifies every cron-referenced script exists in both places and flags content drift — run it after any live script edit; content drift exits non-zero (3), and `--reconcile --toward=repo|deployed [--apply]` performs an explicit, dry-run-by-default repair.
 
 ## 5. Skills & memory
 
