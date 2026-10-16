@@ -83,7 +83,7 @@ printf '%s\n' '#!/usr/bin/env bash' 'echo v1' > "$REPO/fixture_diff.sh"
 printf '%s\n' '#!/usr/bin/env bash' 'echo v2' > "$HERMES_SCRIPTS/fixture_diff.sh"
 capture
 if [ "$RC" -eq 3 ] && printf '%s' "$OUT" | grep -q "WARN: fixture_diff.sh content differs" \
-    && printf '%s' "$OUT" | grep -q "fix: scripts/check-ops-drift.sh --reconcile"; then
+     && printf '%s' "$OUT" | grep -q "fix: .* --reconcile"; then
   pass "content diff -> WARN: + fix: + exit 3"
 else
   fail "content diff -> WARN: + fix: + exit 3 (rc=$RC, out=$OUT)"
@@ -117,13 +117,14 @@ else
   fail "reconcile without --toward -> exit 64 + unchanged fixtures (rc=$RC, out=$OUT)"
 fi
 
-# --- scenario I: reconcile deployed dry run ---------------------------------
-capture --reconcile --toward=deployed
-if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q "PLAN: cp" \
-    && ! cmp -s "$REPO/fixture_diff.sh" "$HERMES_SCRIPTS/fixture_diff.sh"; then
-  pass "reconcile toward deployed dry run -> PLAN: + unchanged deployed"
+# --- scenario I: reconcile repo dry run --------------------------------------
+capture --reconcile --toward=repo
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q "PLAN: cp $HERMES_SCRIPTS/fixture_diff.sh $REPO/fixture_diff.sh" \
+    && ! cmp -s "$REPO/fixture_diff.sh" "$HERMES_SCRIPTS/fixture_diff.sh" \
+    && grep -q 'v1' "$REPO/fixture_diff.sh"; then
+  pass "reconcile toward repo dry run -> repo PLAN: + unchanged repo"
 else
-  fail "reconcile toward deployed dry run -> PLAN: + unchanged deployed (rc=$RC, out=$OUT)"
+  fail "reconcile toward repo dry run -> repo PLAN: + unchanged repo (rc=$RC, out=$OUT)"
 fi
 
 # --- scenario J: reconcile deployed apply -----------------------------------
@@ -139,9 +140,13 @@ else
   fail "reconcile toward deployed apply -> equal + plain exit 0 (rc=$RC, out=$OUT)"
 fi
 
+# Re-diverge after scenario J so this direction exercises an actual copy.
+printf '%s\n' '#!/usr/bin/env bash' 'echo v3-deployed' > "$HERMES_SCRIPTS/fixture_diff.sh"
+
 # --- scenario K: reconcile repo apply ---------------------------------------
 capture --reconcile --toward=repo --apply
-if [ "$RC" -eq 0 ] && cmp -s "$REPO/fixture_diff.sh" "$HERMES_SCRIPTS/fixture_diff.sh"; then
+if [ "$RC" -eq 0 ] && cmp -s "$REPO/fixture_diff.sh" "$HERMES_SCRIPTS/fixture_diff.sh" \
+    && grep -q 'v3-deployed' "$REPO/fixture_diff.sh"; then
   capture
   if [ "$RC" -eq 0 ]; then
     pass "reconcile toward repo apply -> equal + plain exit 0"
@@ -168,6 +173,55 @@ if [ "$RC" -eq 2 ]; then
   pass "missing jobs.json -> exit 2"
 else
   fail "missing jobs.json -> exit 2 (rc=$RC, out=$OUT)"
+fi
+
+# --- additional usage and parse/error-precedence coverage --------------------
+write_jobs '[{"script": "fixture_ok.sh"}]'
+capture --unknown
+if [ "$RC" -eq 64 ]; then
+  pass "unknown argument -> exit 64"
+else
+  fail "unknown argument -> exit 64 (rc=$RC, out=$OUT)"
+fi
+
+capture --apply
+if [ "$RC" -eq 64 ]; then
+  pass "--apply without --reconcile -> exit 64"
+else
+  fail "--apply without --reconcile -> exit 64 (rc=$RC, out=$OUT)"
+fi
+
+capture --toward=repo
+if [ "$RC" -eq 64 ]; then
+  pass "--toward without --reconcile -> exit 64"
+else
+  fail "--toward without --reconcile -> exit 64 (rc=$RC, out=$OUT)"
+fi
+
+write_jobs '{malformed json'
+capture
+if [ "$RC" -eq 2 ]; then
+  pass "malformed jobs.json -> exit 2"
+else
+  fail "malformed jobs.json -> exit 2 (rc=$RC, out=$OUT)"
+fi
+
+write_jobs '[{"script": "fixture_diff.sh"}, {"script": "missing-hard-error.sh"}]'
+printf '%s\n' '#!/usr/bin/env bash' 'echo drift-repo' > "$REPO/fixture_diff.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'echo drift-deployed' > "$HERMES_SCRIPTS/fixture_diff.sh"
+capture
+if [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -q 'ERROR: missing-hard-error.sh'; then
+  pass "ERROR masks drift -> exit 1"
+else
+  fail "ERROR masks drift -> exit 1 (rc=$RC, out=$OUT)"
+fi
+
+write_jobs '[{"script": "../unsafe.sh"}]'
+capture --reconcile --toward=repo --apply
+if [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -q "ERROR: unsafe script name"; then
+  pass "unsafe script name -> ERROR + exit 1"
+else
+  fail "unsafe script name -> ERROR + exit 1 (rc=$RC, out=$OUT)"
 fi
 
 echo

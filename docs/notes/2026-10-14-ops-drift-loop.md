@@ -75,3 +75,24 @@ Implemented via `opencode` (spec inlined with `opencode run "$(cat spec)"`), rev
    up its own `/tmp/ops-drift-live.out` and was auto-rejected (`permission requested:
    external_directory (/tmp/*); auto-rejecting`) — the task itself had already completed
    (rc 0), so a trailing permission rejection in the log is not a failure.
+
+## Review follow-up
+
+The review hardening is now complete: script-name validation rejects unsafe names; copies are
+atomic and checked; the reverse-direction apply test really copies changed content; the exit
+contract is restored with hard errors taking precedence over drift; reconcile errors return a
+failure; rescans use an in-process-safe resolved path; symlink destinations are refused; dirty
+repo worktrees produce a warning; the usage table and `${VAR:-default}` handling are consistent;
+and coverage now includes usage, malformed jobs, unsafe names, and error-versus-drift precedence.
+
+One limitation is deliberately accepted: `gemini-4-argon-contributor` has a documented GUESS
+price tuple mirroring `muse-spark-1.3-contributor` (verified to be the same tuple), because the
+model is absent from the docs pricing table. It must be corrected through the reconcile tool,
+not by hand.
+
+`morning_context.py` defines only `GO_RATES`, `GO_MODEL_MONTHLY`, and `MODEL_ALIASES`;
+`PER_MODEL_REQ_CAPS`, `DEFAULT_MODEL`, and `CRON_MODEL` exist only in `token_usage_report.py`.
+Every rate/cap lookup in both files is `.get()`-defaulted except
+`PER_MODEL_REQ_CAPS[DEFAULT_MODEL]`, `PER_MODEL_REQ_CAPS[CRON_MODEL]`, and
+`PER_MODEL_REQ_CAPS['deepseek-v4-pro']`; all three keys are defined, so the new rows cannot
+raise `KeyError`.
