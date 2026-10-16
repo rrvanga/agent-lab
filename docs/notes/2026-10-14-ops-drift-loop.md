@@ -96,3 +96,32 @@ Every rate/cap lookup in both files is `.get()`-defaulted except
 `PER_MODEL_REQ_CAPS[DEFAULT_MODEL]`, `PER_MODEL_REQ_CAPS[CRON_MODEL]`, and
 `PER_MODEL_REQ_CAPS['deepseek-v4-pro']`; all three keys are defined, so the new rows cannot
 raise `KeyError`.
+
+## 2026-10-16 — parity refresh + atomic landing of #39 and #40
+
+The recurrence fired one level deeper on the next run: the 08:02 live writer had put three more
+free `GO_RATES` rows into **both** deployed meter scripts — `beam-free`, `glm-5.3-flash-free`,
+`ll-alpha-free` (all new 2026-10-16) — and marked `cat-jam-free` as removed from the free/zen/go
+catalogs. The repo was behind on both files, so `check-ops-drift.sh` exited **3 against `main`**
+before any merge of this branch: exactly the signal the issue asked for, now actionable.
+
+- Repo copies refreshed from the deployed side with the tool this issue added:
+  `check-ops-drift.sh --reconcile --toward=repo --apply` → both files `OK`, overall rc **0**,
+  `cmp` byte-identical.
+- `docs/ARCHITECTURE.md` carries #40's `default` alias row (`deepseek-v4.1-flash`), and the
+  deployed copies already contained #40's re-denomination (cap $80 / 34,670 req-5h,
+  `DEFAULT_MODEL` / `CRON_MODEL`, `agent-main` alias), so both PRs' content ships in one diff.
+- #39 and #40 touch the same two files, so they were landed as **one squash merge** on
+  `feat/38-ops-drift-loop`; #40 was closed as superseded by #39 rather than merged separately.
+
+## Lessons (2026-10-16)
+
+1. **The drift source is a live writer on a schedule.** A catalogue job rewrites the deployed
+   meter tables at 08:02, so repo→deployed parity is a *daily* chore, not a one-off. That is why
+   the repair path (one command, explicit direction, dry run by default) was the right fix.
+2. **Two PRs editing the same files cannot be merged atomically on separate branches.** Merging
+   #39 first leaves `main` in the exit-3 drift state between the two merges. Landing the pair on a
+   single branch and squash-merging once is the only way to avoid a transient red state.
+3. **Verify the *live* side before believing a parity claim.** A previous run's "byte-identical"
+   sync was already stale hours later; parity must be re-checked against `~/.hermes/scripts/` at
+   landing time, not trusted from the branch's commit message.
