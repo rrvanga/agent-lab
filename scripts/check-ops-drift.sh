@@ -13,6 +13,9 @@
 # Reconcile mode: --reconcile --toward=repo|deployed [--apply] plans changes by
 # default and applies only content-drifted files when --apply is specified. A
 # reconcile with an ERROR exits 1; jobs.json errors still exit 2.
+# `--toward=repo --apply` refuses to run on a dirty git worktree (exit 1) unless
+# `--force` is given.
+# --quiet suppresses OK/INFO lines; WARN/ERROR lines are always printed.
 # Deps: bash, grep, python3 (json parsing — no jq required).
 set -u
 
@@ -30,12 +33,19 @@ SELF_PATH="$(cd "$(dirname "$SELF_SOURCE")" 2>/dev/null && pwd -P)/$(basename "$
 QUIET=0
 RECONCILE=0
 APPLY=0
+FORCE=0
 TOWARD=""
 
 usage() {
   cat <<'EOF'
 Usage: check-ops-drift.sh [--quiet] [--help]
-       check-ops-drift.sh --reconcile --toward=repo|deployed [--apply]
+       check-ops-drift.sh --reconcile --toward=repo|deployed [--apply] [--force]
+
+Options:
+  --quiet            suppress OK/INFO output (WARN/ERROR are still printed)
+  --force            allow --toward=repo --apply on a dirty repo worktree
+
+When run from the deployed copy, set REPO_SCRIPTS_DIR=/path/to/agent-lab/scripts.
 
 Exit codes:
   0   clean: no findings
@@ -62,6 +72,7 @@ for arg in "$@"; do
     --quiet) QUIET=1 ;;
     --reconcile) RECONCILE=1 ;;
     --apply) APPLY=1 ;;
+    --force) FORCE=1 ;;
     --toward=repo) TOWARD=repo ;;
     --toward=deployed) TOWARD=deployed ;;
     *) echo "Usage: check-ops-drift.sh [--quiet] [--help] or --reconcile --toward=repo|deployed [--apply]" >&2; exit 64 ;;
@@ -77,6 +88,11 @@ if [ "$RECONCILE" -eq 1 ] && [ -z "$TOWARD" ]; then
   exit 64
 fi
 if [ "$RECONCILE" -ne 1 ] && [ -n "$TOWARD" ]; then
+  echo "Usage: check-ops-drift.sh [--quiet] [--help] or --reconcile --toward=repo|deployed [--apply]" >&2
+  exit 64
+fi
+if [ "$FORCE" -eq 1 ] && \
+   { [ "$RECONCILE" -ne 1 ] || [ "$APPLY" -ne 1 ] || [ "$TOWARD" != "repo" ]; }; then
   echo "Usage: check-ops-drift.sh [--quiet] [--help] or --reconcile --toward=repo|deployed [--apply]" >&2
   exit 64
 fi
@@ -150,7 +166,9 @@ if [ "${#CRON_SCRIPTS[@]}" -gt 0 ]; then
     HERMES_FILE="$HERMES_SCRIPTS/$S"
     if [ -f "$REPO_FILE" ] && [ -f "$HERMES_FILE" ]; then
       if cmp -s "$REPO_FILE" "$HERMES_FILE"; then
-        echo "OK: $S"
+        if [ "$QUIET" -eq 0 ]; then
+          echo "OK: $S"
+        fi
       else
         echo "WARN: $S content differs (one side edited; reconcile via repo then re-deploy)"
         echo "      fix: $SELF_PATH --reconcile --toward=repo --apply     # deployed copy -> repo"
@@ -193,8 +211,24 @@ if [ "$RECONCILE" -eq 1 ]; then
     exit 1
   fi
   if [ "$DRIFT_COUNT" -eq 0 ]; then
-    echo "INFO: no content drift; nothing to reconcile"
+    if [ "$QUIET" -ne 1 ]; then
+      echo "INFO: no content drift; nothing to reconcile"
+    fi
     exit 0
+  fi
+  if [ "$TOWARD" = "repo" ] && [ "$APPLY" -eq 1 ]; then
+    GIT_STATUS="$(git -C "$REPO_RESOLVED" status --porcelain 2>/dev/null)"
+    GIT_RC=$?
+    if [ "$GIT_RC" -ne 0 ]; then
+      echo "WARN: cannot verify repo worktree cleanliness (not a git work tree): $REPO_RESOLVED" >&2
+    elif [ -n "$GIT_STATUS" ]; then
+      if [ "$FORCE" -eq 1 ]; then
+        echo "WARN: repo worktree is dirty: $REPO_RESOLVED (continuing because --force was given)" >&2
+      else
+        echo "ERROR: repo worktree is dirty: $REPO_RESOLVED; commit or stash first, or pass --force" >&2
+        exit 1
+      fi
+    fi
   fi
   for S in "${DRIFT_FILES[@]:-}"; do
     if ! [[ "$S" =~ ^[A-Za-z0-9._-]+$ ]] || [[ "$S" = .* ]] || [[ "$S" = */* ]]; then
@@ -213,9 +247,6 @@ if [ "$RECONCILE" -eq 1 ]; then
       exit 1
     fi
     if [ "$APPLY" -eq 1 ]; then
-      if [ "$TOWARD" = "repo" ] && git -C "$REPO_RESOLVED" status --porcelain 2>/dev/null | grep -q .; then
-        echo "WARN: repo worktree is dirty: $REPO_RESOLVED" >&2
-      fi
       TMP_DST="$DST.tmp.$$"
       if ! cp -p "$SRC" "$TMP_DST" || ! mv -f "$TMP_DST" "$DST"; then
         rm -f "$TMP_DST"

@@ -224,6 +224,76 @@ else
   fail "unsafe script name -> ERROR + exit 1 (rc=$RC, out=$OUT)"
 fi
 
+# --- scenario A: --quiet with no-drift reconcile -> no INFO: line ------------
+write_jobs '[{"script": "fixture_ok.sh"}]'
+capture --quiet --reconcile --toward=deployed
+if [ "$RC" -eq 0 ] && ! printf '%s' "$OUT" | grep -q "INFO:"; then
+  pass "--quiet no-drift reconcile -> exit 0 without INFO:"
+else
+  fail "--quiet no-drift reconcile -> exit 0 without INFO: (rc=$RC, out=$OUT)"
+fi
+
+# --- git-based scenarios: dirty-worktree refusal and --force -----------------
+# These scenarios re-init a git repo over the fixture root after scenarios A-L
+# have already run, so they cannot affect any earlier result.
+REPO_ROOT="$TMP/repo"
+git_commit() {
+  git -C "$REPO_ROOT" -c user.email=test@example.invalid -c user.name=test \
+    -c commit.gpgsign=false commit -q -m "$1"
+}
+git -C "$REPO_ROOT" -c init.defaultBranch=main init -q
+git -C "$REPO_ROOT" add -A
+git_commit baseline
+
+# --- scenario B: dirty repo worktree refuses --toward=repo --apply -----------
+printf '%s\n' '#!/usr/bin/env bash' 'echo v4-deployed' > "$HERMES_SCRIPTS/fixture_diff.sh"
+write_jobs '[{"script": "fixture_diff.sh"}]'
+printf '%s\n' '#!/usr/bin/env bash' 'echo uncommitted-repo-edit' > "$REPO/$FIX_OK"
+repo_diff_before="$(<"$REPO/fixture_diff.sh")"
+capture --reconcile --toward=repo --apply
+if [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -q "repo worktree is dirty" \
+    && [ "$(<"$REPO/fixture_diff.sh")" = "$repo_diff_before" ]; then
+  pass "dirty repo worktree -> refuse apply + exit 1 + file unchanged"
+else
+  fail "dirty repo worktree -> refuse apply + exit 1 + file unchanged (rc=$RC, out=$OUT)"
+fi
+
+# --- scenario C: --force overrides the refusal and applies the copy ----------
+capture --reconcile --toward=repo --apply --force
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q "continuing because --force was given" \
+    && cmp -s "$REPO/fixture_diff.sh" "$HERMES_SCRIPTS/fixture_diff.sh"; then
+  pass "--force on dirty worktree -> exit 0 + repo file equals deployed"
+else
+  fail "--force on dirty worktree -> exit 0 + repo file equals deployed (rc=$RC, out=$OUT)"
+fi
+
+# --- scenario D: --force is only valid with --reconcile --apply --toward=repo -
+capture --force
+if [ "$RC" -eq 64 ]; then
+  pass "--force alone -> exit 64"
+else
+  fail "--force alone -> exit 64 (rc=$RC, out=$OUT)"
+fi
+
+capture --reconcile --toward=deployed --apply --force
+if [ "$RC" -eq 64 ]; then
+  pass "--force with --toward=deployed -> exit 64"
+else
+  fail "--force with --toward=deployed -> exit 64 (rc=$RC, out=$OUT)"
+fi
+
+# --- scenario E: clean repo worktree applies without --force ------------------
+git -C "$REPO_ROOT" add -A
+git_commit clean
+printf '%s\n' '#!/usr/bin/env bash' 'echo v5-deployed' > "$HERMES_SCRIPTS/fixture_diff.sh"
+capture --reconcile --toward=repo --apply
+if [ "$RC" -eq 0 ] && cmp -s "$REPO/fixture_diff.sh" "$HERMES_SCRIPTS/fixture_diff.sh" \
+    && grep -q 'v5-deployed' "$REPO/fixture_diff.sh"; then
+  pass "clean repo worktree -> apply succeeds + exit 0"
+else
+  fail "clean repo worktree -> apply succeeds + exit 0 (rc=$RC, out=$OUT)"
+fi
+
 echo
 echo "$PASSED passed, $FAILURES failed"
 [ "$FAILURES" -eq 0 ]
