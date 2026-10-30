@@ -31,6 +31,7 @@ state/
 # Backups & noise
 *.backup
 *.bak.*
+*.tmp.*
 gateway-restart.log
 gateway-starts.log
 

@@ -58,6 +58,11 @@ print(f'Totals: {tot[0]} sessions | {tot[1]} msgs | {tot[2]} tool calls | '
 GO_RATES = {
     # --- non-tiered, verified 2026-09-19 ---
     'claude-haiku-5-5': (0.10, 0.50, 0.01, 0.125),    # VERIFIED 2026-10-08 live Go docs: ≤100K tier; >100K: 0.50/2.50/0.05/0.625; $15/mo, 3850 req/5h
+    # --- non-tiered, VERIFIED 2026-10-29 from live https://opencode.ai/docs/go pricing table ---
+    'gemini-4-argon':   (2.00, 10.00, 0.10, 0.0),     # 50%-off promo price (list 4.00/20.00/0.20, no cache-write); 30d bucket $30-120 tiers
+    'kimi-k3.1-pro':    (2.00, 10.00, 0.20, 2.00),    # $15/mo tier listed; cheaper than kimi-k3 despite the .pro name
+    'minimax-m3.1-flash': (0.15, 0.60, 0.015, 0.0),   # no cache-write charge; $20/mo tier
+    'iceman-contributor-free': (0.0, 0.0, 0.0, 0.0),  # Free / Unlimited (limited time); also on zen/go paid catalog
     'gemini-4-argon-contributor': (0.10, 0.20, 0.002, 0.0),  # GUESS ~ muse-spark-1.3-contributor (contributor tier = discounted for training rights); NEW on Go paid catalog 2026-10-14, absent from docs pricing table
     'ling-3.1-flash-free': (0.0, 0.0, 0.0, 0.0),      # free; legacy: removed from free/zen catalog 2026-10-14, kept for historical rows
     'glm-5.3-flash':    (0.15, 0.50, 0.03, 0.0),      # $60/mo, 6320 req/5h
@@ -103,7 +108,7 @@ GO_RATES = {
     'nemotron-3.5-super-vl-free': (0.0, 0.0, 0.0, 0.0), # free Zen SKU (new 10-15, VL sibling of nemotron-3.5-lightning-free); FreeTierError 403 outside OpenCode client
     'beam-free':        (0.0, 0.0, 0.0, 0.0),   # free Zen SKU (new 10-16; free tier + zen/v1 + zen/go paid catalog); FreeTierError 403 outside OpenCode client
     'glm-5.3-flash-free': (0.0, 0.0, 0.0, 0.0), # free Zen SKU (new 10-16; free sibling of paid glm-5.3-flash; free tier + zen/v1 only); FreeTierError 403 outside OpenCode client
-    'll-alpha-free':    (0.0, 0.0, 0.0, 0.0),   # free Zen SKU (new 10-16; free tier + zen/v1 only, no paid sibling); FreeTierError 403 outside OpenCode client
+    'll-alpha-free':    (0.0, 0.0, 0.0, 0.0),   # REMOVED from free tier/zen 2026-10-16 (6h lifespan); free tier + zen/v1 only, no paid sibling; was FreeTierError 403 outside OpenCode client — entry kept for historical rows
     'ox-alpha-free':    (0.0, 0.0, 0.0, 0.0),   # promo free
     'space-bunny-free': (0.0, 0.0, 0.0, 0.0),         # free Zen stealth model (docs/zen id 'space-bunny-free', base https://opencode.ai/zen/v1; free for limited time); kept for historical/Zen lanes
     'step-5-preview-free': (0.0, 0.0, 0.0, 0.0),      # free preview 10-08; gated 403 outside OpenCode; id RENAMED to paid 'step-5-preview' on the catalogs 2026-10-15
