@@ -143,10 +143,39 @@ fi
 # Re-diverge after scenario J so this direction exercises an actual copy.
 printf '%s\n' '#!/usr/bin/env bash' 'echo v3-deployed' > "$HERMES_SCRIPTS/fixture_diff.sh"
 
+# --- non-git repo now fails closed before copying anything -------------------
+write_jobs '[{"script": "fixture_diff.sh"}]'
+repo_before_nongit="$(<"$REPO/fixture_diff.sh")"
+capture --reconcile --toward=repo --apply
+if [ "$RC" -eq 1 ] \
+    && printf '%s' "$OUT" | grep -q "cannot verify repo worktree cleanliness (not a git work tree)" \
+    && [ "$(<"$REPO/fixture_diff.sh")" = "$repo_before_nongit" ]; then
+  pass "non-git repo apply -> fail closed + exit 1 + file unchanged"
+else
+  fail "non-git repo apply -> fail closed + exit 1 + file unchanged (rc=$RC, out=$OUT)"
+fi
+
+# --- --force still applies on an unverifiable worktree -----------------------
+capture --reconcile --toward=repo --apply --force
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q "continuing because --force was given" \
+    && cmp -s "$REPO/fixture_diff.sh" "$HERMES_SCRIPTS/fixture_diff.sh"; then
+  pass "non-git repo apply --force -> warning + copy + exit 0"
+else
+  fail "non-git repo apply --force -> warning + copy + exit 0 (rc=$RC, out=$OUT)"
+fi
+
+# Scenario K now runs after a clean git init so the cleanliness check passes.
+printf '%s\n' '#!/usr/bin/env bash' 'echo v3b-deployed' > "$HERMES_SCRIPTS/fixture_diff.sh"
+REPO_ROOT="$TMP/repo"
+git -C "$REPO_ROOT" -c init.defaultBranch=main init -q
+git -C "$REPO_ROOT" add -A
+git -C "$REPO_ROOT" -c user.email=test@example.invalid -c user.name=test \
+  -c commit.gpgsign=false commit -q -m baseline-before-k
+
 # --- scenario K: reconcile repo apply ---------------------------------------
 capture --reconcile --toward=repo --apply
 if [ "$RC" -eq 0 ] && cmp -s "$REPO/fixture_diff.sh" "$HERMES_SCRIPTS/fixture_diff.sh" \
-    && grep -q 'v3-deployed' "$REPO/fixture_diff.sh"; then
+    && grep -q 'v3b-deployed' "$REPO/fixture_diff.sh"; then
   capture
   if [ "$RC" -eq 0 ]; then
     pass "reconcile toward repo apply -> equal + plain exit 0"
@@ -252,8 +281,9 @@ printf '%s\n' '#!/usr/bin/env bash' 'echo uncommitted-repo-edit' > "$REPO/$FIX_O
 repo_diff_before="$(<"$REPO/fixture_diff.sh")"
 capture --reconcile --toward=repo --apply
 if [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -q "repo worktree is dirty" \
+    && printf '%s' "$OUT" | grep -q "fixture_ok.sh" \
     && [ "$(<"$REPO/fixture_diff.sh")" = "$repo_diff_before" ]; then
-  pass "dirty repo worktree -> refuse apply + exit 1 + file unchanged"
+  pass "dirty repo worktree -> refuse apply + exit 1 + offending path + file unchanged"
 else
   fail "dirty repo worktree -> refuse apply + exit 1 + file unchanged (rc=$RC, out=$OUT)"
 fi
@@ -292,6 +322,44 @@ if [ "$RC" -eq 0 ] && cmp -s "$REPO/fixture_diff.sh" "$HERMES_SCRIPTS/fixture_di
   pass "clean repo worktree -> apply succeeds + exit 0"
 else
   fail "clean repo worktree -> apply succeeds + exit 0 (rc=$RC, out=$OUT)"
+fi
+
+# --- atomicity: late validation failure must not apply earlier files --------
+ATOMIC_A="fixture_atomic_a.sh"
+ATOMIC_B="fixture_atomic_b.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'echo atomic-a-repo' > "$REPO/$ATOMIC_A"
+printf '%s\n' '#!/usr/bin/env bash' 'echo atomic-a-deployed' > "$HERMES_SCRIPTS/$ATOMIC_A"
+printf '%s\n' 'echo atomic-b-target' > "$TMP/atomic-target.txt"
+ln -s "$TMP/atomic-target.txt" "$REPO/$ATOMIC_B"
+printf '%s\n' '#!/usr/bin/env bash' 'echo atomic-b-deployed' > "$HERMES_SCRIPTS/$ATOMIC_B"
+write_jobs "[{\"script\": \"$ATOMIC_A\"}, {\"script\": \"$ATOMIC_B\"}]"
+cp "$REPO/$ATOMIC_A" "$TMP/atomic-a-before"
+capture --reconcile --toward=repo --apply --force
+if [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -q "refusing to write through symlink" \
+    && cmp -s "$REPO/$ATOMIC_A" "$TMP/atomic-a-before"; then
+  pass "second destination symlink -> exit 1 + first file unmodified"
+else
+  fail "second destination symlink -> exit 1 + first file unmodified (rc=$RC, out=$OUT)"
+fi
+
+# --- --quiet still prints PLAN:/APPLIED: ------------------------------------
+QUIET_FIX="fixture_quiet.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'echo quiet-repo' > "$REPO/$QUIET_FIX"
+printf '%s\n' '#!/usr/bin/env bash' 'echo quiet-deployed' > "$HERMES_SCRIPTS/$QUIET_FIX"
+write_jobs "[{\"script\": \"$QUIET_FIX\"}]"
+capture --quiet --reconcile --toward=deployed
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q "^PLAN: cp " \
+    && ! printf '%s' "$OUT" | grep -q "^INFO:"; then
+  pass "--quiet reconcile dry run -> PLAN: printed"
+else
+  fail "--quiet reconcile dry run -> PLAN: printed (rc=$RC, out=$OUT)"
+fi
+
+capture --quiet --reconcile --toward=deployed --apply
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q "^APPLIED: cp "; then
+  pass "--quiet reconcile apply -> APPLIED: printed"
+else
+  fail "--quiet reconcile apply -> APPLIED: printed (rc=$RC, out=$OUT)"
 fi
 
 echo

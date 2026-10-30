@@ -178,6 +178,31 @@ rate changes reported dollars and therefore model-routing decisions, the same ap
 as the durable writer fix. Filed as a follow-up issue with the evidence above; until it is
 resolved, treat `iceman-contributor-free` usage as unpriced (hidden) spend.
 
+### MOA review round 1 (2026-10-30): verdict FIX, both blockers closed
+
+The gate returned `VERDICT: FIX` with two blockers and six nits, all in the reconcile path:
+
+- **Blocker — fail-open cleanliness check.** When `git status` itself failed (git missing, not a work
+  tree, dubious ownership) the script only printed `WARN: cannot verify…` and went on to copy, i.e. the
+  exact overwrite the refusal exists to prevent. Now `git rev-parse --is-inside-work-tree` runs first,
+  the cause is classified (git unavailable / not a git work tree / rev-parse failed / status failed) and
+  the run **fails closed** (exit 1, nothing copied) unless `--force` downgrades it to a WARN.
+- **Blocker — per-file preconditions.** Checks lived inside the copy loop, so a bad second entry left
+  the first already written (half-applied pair). A validation pre-pass now checks every pending write
+  (safe name, readable source, destination not a symlink, destination directory present and writable)
+  and exits 1 before the first byte is copied.
+- Nits: dirty status paths are now listed (capped at 10 with `... N more`); the in-flight
+  `$DST.tmp.$$` is removed by an EXIT/INT/TERM/HUP trap and `*.tmp.*` is gitignored so a killed run
+  cannot poison the worktree permanently; the cleanliness-check scope (`scripts/` only, untracked files
+  inside it count as dirty) is documented in the header and usage; `cmp` exit >= 2 is reported as
+  `ERROR: cannot compare …` instead of being mislabelled content drift; `PLAN:`/`APPLIED:` are
+  documented as always printed under `--quiet`; the refusal reason is emitted on stdout as well as
+  stderr so a stdout-only cron capture still shows why the run failed.
+
+Harness grew 24 → 29 assertions, including non-git fail-closed (and `--force` override), late
+validation failure leaving the earlier file byte-identical, the dirty refusal naming the offending
+path, and `PLAN:`/`APPLIED:` under `--quiet`.
+
 ### Still blocked on explicit user approval
 
 The durable fix — make the writer repo-aware, or single-source `GO_RATES` so the two meter scripts
