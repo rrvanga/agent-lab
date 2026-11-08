@@ -362,6 +362,66 @@ else
   fail "--quiet reconcile apply -> APPLIED: printed (rc=$RC, out=$OUT)"
 fi
 
+# --- Finding 2: cleanliness scope is $REPO_RESOLVED only (scripts/) ---------
+# Reset to a clean git baseline with a drifted script.
+git -C "$REPO_ROOT" reset -q --hard
+git -C "$REPO_ROOT" clean -qfd
+SCOPE_FIX="fixture_scope.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'echo scope-repo' > "$REPO/$SCOPE_FIX"
+printf '%s\n' '#!/usr/bin/env bash' 'echo scope-deployed' > "$HERMES_SCRIPTS/$SCOPE_FIX"
+write_jobs "[{\"script\": \"$SCOPE_FIX\"}]"
+git -C "$REPO_ROOT" add -A
+git_commit scope-baseline
+
+# Dirty file OUTSIDE the checked dir (repo root) must NOT block reconcile.
+printf '%s\n' 'outside dirty' > "$REPO_ROOT/outside.txt"
+capture --reconcile --toward=repo --apply
+if [ "$RC" -eq 0 ] && cmp -s "$REPO/$SCOPE_FIX" "$HERMES_SCRIPTS/$SCOPE_FIX" \
+    && grep -q 'scope-deployed' "$REPO/$SCOPE_FIX"; then
+  pass "dirty file outside scripts/ -> reconcile still applies (scope = scripts/ only)"
+else
+  fail "dirty file outside scripts/ -> reconcile still applies (rc=$RC, out=$OUT)"
+fi
+
+# Untracked/dirty file INSIDE scripts/ must still block.
+rm -f "$REPO_ROOT/outside.txt"
+git -C "$REPO_ROOT" add -A
+git_commit scope-clean-inside
+printf '%s\n' '#!/usr/bin/env bash' 'echo scope-deployed-2' > "$HERMES_SCRIPTS/$SCOPE_FIX"
+write_jobs "[{\"script\": \"$SCOPE_FIX\"}]"
+repo_scope_before="$(<"$REPO/$SCOPE_FIX")"
+printf '%s\n' 'untracked inside' > "$REPO/untracked_inside.txt"
+capture --reconcile --toward=repo --apply
+if [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -q "repo worktree is dirty" \
+    && printf '%s' "$OUT" | grep -q "REFUSED: dirty-worktree" \
+    && [ "$(<"$REPO/$SCOPE_FIX")" = "$repo_scope_before" ]; then
+  pass "untracked file inside scripts/ -> refuse apply + REFUSED: dirty-worktree + unchanged"
+else
+  fail "untracked file inside scripts/ -> refuse apply + exit 1 (rc=$RC, out=$OUT)"
+fi
+rm -f "$REPO/untracked_inside.txt"
+
+# --- Finding 4: destination is an existing directory -> reject, no copy ------
+git -C "$REPO_ROOT" add -A
+git_commit dir-dest-baseline 2>/dev/null || true
+DIRDEST_FIX="fixture_dirdest.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'echo dirdest-repo' > "$REPO/$DIRDEST_FIX"
+printf '%s\n' '#!/usr/bin/env bash' 'echo dirdest-deployed' > "$HERMES_SCRIPTS/$DIRDEST_FIX"
+git -C "$REPO_ROOT" add -A
+git_commit dir-dest-commit
+# Replace the repo-side destination with a directory.
+rm -f "$REPO/$DIRDEST_FIX"
+mkdir -p "$REPO/$DIRDEST_FIX"
+write_jobs "[{\"script\": \"$DIRDEST_FIX\"}]"
+capture --reconcile --toward=repo --apply --force
+if [ "$RC" -eq 1 ] && [ -d "$REPO/$DIRDEST_FIX" ] \
+    && [ ! -e "$REPO/$DIRDEST_FIX/$DIRDEST_FIX" ]; then
+  pass "destination is a directory -> exit 1 + nothing copied, dir preserved"
+else
+  fail "destination is a directory -> exit 1 + nothing copied (rc=$RC, dir=$([ -d "$REPO/$DIRDEST_FIX" ] && echo yes || echo no), inside=$([ -e "$REPO/$DIRDEST_FIX/$DIRDEST_FIX" ] && echo yes || echo no), out=$OUT)"
+fi
+rm -rf "$REPO/$DIRDEST_FIX"
+
 echo
 echo "$PASSED passed, $FAILURES failed"
 [ "$FAILURES" -eq 0 ]

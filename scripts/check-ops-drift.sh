@@ -16,10 +16,12 @@
 # APPLIED: lines are always printed, even under --quiet.
 # `--toward=repo --apply` fails closed (exit 1, no files copied) if the git
 # worktree containing $REPO_RESOLVED is dirty or its cleanliness cannot be
-# verified; `--force` downgrades both to a WARN and continues.
-# The cleanliness check covers $REPO_RESOLVED only (normally scripts/):
-# uncommitted edits elsewhere in the repo are ignored, while any untracked file
-# inside scripts/ counts as dirty.
+# verified; `--force` downgrades both to a WARN and continues. On a hard
+# refusal, stdout emits one `REFUSED: <cause> — see stderr` line (always
+# printed, never gated by --quiet) and stderr carries the full `ERROR: ...`.
+# The cleanliness check covers $REPO_RESOLVED only (normally scripts/), via
+# `git status --porcelain -- .`: uncommitted edits elsewhere in the repo are
+# ignored, while any untracked file inside scripts/ counts as dirty.
 # --quiet suppresses OK/INFO lines; WARN/ERROR lines are always printed.
 # Deps: bash, grep, python3 (json parsing — no jq required).
 set -u
@@ -59,13 +61,17 @@ Usage: check-ops-drift.sh [--quiet] [--help]
 
 Options:
   --quiet            suppress OK/INFO output (WARN/ERROR are still printed;
-                     PLAN:/APPLIED: are always printed, even with --quiet)
+                     PLAN:/APPLIED: and REFUSED: are always printed, even with --quiet)
   --force            allow --toward=repo --apply when the repo worktree is dirty
                      or its cleanliness cannot be verified
 
-Cleanliness check scope: only $REPO_RESOLVED (normally scripts/) is checked.
-Uncommitted edits elsewhere in the repo are ignored; any untracked file inside
-that directory counts as dirty.
+Cleanliness check scope: only $REPO_RESOLVED (normally scripts/) is checked
+(`git status --porcelain -- .`). Uncommitted edits elsewhere in the repo are
+ignored; any untracked file inside that directory counts as dirty.
+
+Stdout contract (fail-closed reconciles): on refusal, stdout prints exactly one
+short `REFUSED: <cause> — see stderr` line (never gated by --quiet); stderr
+carries the full ERROR detail.
 
 When run from the deployed copy, set REPO_SCRIPTS_DIR=/path/to/agent-lab/scripts.
 
@@ -261,12 +267,18 @@ if [ "$RECONCILE" -eq 1 ]; then
       if [ "$FORCE" -eq 1 ]; then
         echo "WARN: cannot verify repo worktree cleanliness ($GIT_CAUSE): $REPO_RESOLVED: $GIT_DETAIL (continuing because --force was given)" >&2
       else
+        REFUSED_CAUSE="rev-parse-failed"
+        if [ "$GIT_RC" -eq 127 ]; then
+          REFUSED_CAUSE="git-unavailable"
+        elif [ "$GIT_RC" -eq 0 ] || [[ "$GIT_ERR_FIRST" == *"not a git repository"* ]]; then
+          REFUSED_CAUSE="not-a-work-tree"
+        fi
         echo "ERROR: cannot verify repo worktree cleanliness ($GIT_CAUSE): $REPO_RESOLVED: $GIT_DETAIL" >&2
-        echo "ERROR: cannot verify repo worktree cleanliness ($GIT_CAUSE): $REPO_RESOLVED: $GIT_DETAIL"
+        echo "REFUSED: $REFUSED_CAUSE — see stderr"
         exit 1
       fi
     else
-      GIT_STATUS="$(git -C "$REPO_RESOLVED" status --porcelain 2>&1)"
+      GIT_STATUS="$(git -C "$REPO_RESOLVED" status --porcelain -- . 2>&1)"
       GIT_RC=$?
       if [ "$GIT_RC" -ne 0 ]; then
         GIT_ERR_FIRST="${GIT_STATUS%%$'\n'*}"
@@ -275,7 +287,7 @@ if [ "$RECONCILE" -eq 1 ]; then
           echo "WARN: cannot verify repo worktree cleanliness (git status failed): $REPO_RESOLVED: $GIT_DETAIL (continuing because --force was given)" >&2
         else
           echo "ERROR: cannot verify repo worktree cleanliness (git status failed): $REPO_RESOLVED: $GIT_DETAIL" >&2
-          echo "ERROR: cannot verify repo worktree cleanliness (git status failed): $REPO_RESOLVED: $GIT_DETAIL"
+          echo "REFUSED: status-failed — see stderr"
           exit 1
         fi
       elif [ -n "$GIT_STATUS" ]; then
@@ -298,7 +310,7 @@ if [ "$RECONCILE" -eq 1 ]; then
             echo "       ... $((${#DIRTY_LINES[@]} - 10)) more"
           fi
           echo "ERROR: repo worktree is dirty: $REPO_RESOLVED; commit or stash first, or pass --force" >&2
-          echo "ERROR: repo worktree is dirty: $REPO_RESOLVED; commit or stash first, or pass --force"
+          echo "REFUSED: dirty-worktree — see stderr"
           exit 1
         fi
       fi
@@ -329,6 +341,9 @@ if [ "$RECONCILE" -eq 1 ]; then
       if [ -L "$DST" ]; then
         echo "ERROR: refusing to write through symlink $DST" >&2
         VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
+      elif [ -d "$DST" ]; then
+        echo "ERROR: refusing to overwrite existing directory $DST" >&2
+        VALIDATION_ERRORS=$((VALIDATION_ERRORS + 1))
       fi
       DST_DIR="$(dirname "$DST")"
       if [ ! -d "$DST_DIR" ]; then
@@ -340,6 +355,7 @@ if [ "$RECONCILE" -eq 1 ]; then
       fi
     done
     if [ "$VALIDATION_ERRORS" -ne 0 ]; then
+      echo "REFUSED: validation — see stderr"
       exit 1
     fi
   fi
@@ -358,6 +374,9 @@ if [ "$RECONCILE" -eq 1 ]; then
     fi
     if [ -L "$DST" ]; then
       echo "ERROR: refusing to write through symlink $DST" >&2
+      exit 1
+    elif [ -d "$DST" ]; then
+      echo "ERROR: refusing to overwrite existing directory $DST" >&2
       exit 1
     fi
     if [ "$APPLY" -eq 1 ]; then

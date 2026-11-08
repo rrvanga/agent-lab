@@ -203,6 +203,36 @@ Harness grew 24 → 29 assertions, including non-git fail-closed (and `--force` 
 validation failure leaving the earlier file byte-identical, the dirty refusal naming the offending
 path, and `PLAN:`/`APPLIED:` under `--quiet`.
 
+### MOA review round 2 (2026-11-08): verdict FIX, all four closed
+
+- **(blocking) truthy zero-rate `iceman-contributor-free` row.** Cause: `GO_RATES.get()` returned a
+  truthy `(0,0,0,0)` for a model on the Go *paid* catalog (the dict itself noted "also on zen/go paid
+  catalog"), so spend-reporting scripts booked every token at $0.00 — silent under-report. Fix:
+  deleted that single row from `scripts/morning_context.py` and `scripts/token_usage_report.py`
+  (repo copies only; `main` never had it); no replacement/sentinel rates invented and no pricing
+  logic changed, so the model now falls through to the unpriced/unknown path. Deployed copies in
+  `~/.hermes/scripts/` are untouched (deployment remains approval-gated). The paid-vs-free
+  classification decision for this model remains tracked in issue #43.
+- **Cleanliness scope was repo-wide, documented as scripts-only.** Cause:
+  `git -C "$REPO_RESOLVED" status --porcelain` (no pathspec) reported the whole work tree while the
+  header/help promised only `$REPO_RESOLVED`. Fix: `git status --porcelain -- .` scopes the check to
+  `$REPO_RESOLVED`; help/header state the true scope and that edits elsewhere in the repo are ignored
+  while untracked files inside the checked directory still count as dirty.
+- **Fail-closed refusals printed twice under `2>&1`.** Cause: each hard-failure `ERROR:` line was
+  echoed to stderr and again verbatim to stdout. Fix: stderr keeps the full `ERROR: ...`; stdout
+  emits exactly one short `REFUSED: <cause> — see stderr` per refusal
+  (`git-unavailable`/`not-a-work-tree`/`rev-parse-failed`/`status-failed`/`dirty-worktree`/`validation`),
+  always printed, never `--quiet`-gated. `--force` downgrade semantics unchanged. `REFUSED:` is
+  documented in the header and `--help`.
+- **Pre-write validation did not reject a directory destination.** Cause: only the symlinked-`$DST`
+  case was refused, so `mv -f` onto an existing directory could return 0 and relocate the temp file
+  *inside* it while still printing `APPLIED:` (defence-in-depth gap; normally masked by `cmp` rc>=2).
+  Fix: `[ -d "$DST" ]` rejection next to the `-L` test in the validation pre-pass and the copy loop,
+  sharing the validation-error counter and naming the path.
+
+Harness grew 29 → 33 assertions (directory-destination refusal preserving the directory, and an
+out-of-scope dirty file not blocking while an untracked file inside `scripts/` still does).
+
 ### Still blocked on explicit user approval
 
 The durable fix — make the writer repo-aware, or single-source `GO_RATES` so the two meter scripts
