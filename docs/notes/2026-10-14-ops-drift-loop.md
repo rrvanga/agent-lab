@@ -230,7 +230,8 @@ path, and `PLAN:`/`APPLIED:` under `--quiet`.
   Fix: `[ -d "$DST" ]` rejection next to the `-L` test in the validation pre-pass and the copy loop,
   sharing the validation-error counter and naming the path.
 
-Harness grew 29 → 33 assertions (directory-destination refusal preserving the directory, and an
+Harness grew 29 → 32 scenarios (the harness's own summary line reports `32 passed, 0 failed`:
+directory-destination refusal preserving the directory, and an
 out-of-scope dirty file not blocking while an untracked file inside `scripts/` still does).
 
 ### Still blocked on explicit user approval
