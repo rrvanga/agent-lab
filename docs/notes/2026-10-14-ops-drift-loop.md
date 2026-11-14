@@ -125,3 +125,128 @@ before any merge of this branch: exactly the signal the issue asked for, now act
 3. **Verify the *live* side before believing a parity claim.** A previous run's "byte-identical"
    sync was already stale hours later; parity must be re-checked against `~/.hermes/scripts/` at
    landing time, not trusted from the branch's commit message.
+
+## 2026-10-29 — issue #41: reconcile hardening nits + parity refresh
+
+The 08:02 catalogue writer fired again (fifth recurrence: `#22`, `#28`, `#36/#37`, `#39`,
+2026-10-29), so the checker was already doing its job on `main`: `rc=3` with
+`morning_context.py` and `token_usage_report.py` both `WARN`. Exit code 3 = content drift is
+documented in the script header and `--help` (0 clean / 1 error / 2 jobs.json / 3 drift / 64 usage),
+so this `rc=3` record is drift, not an undocumented error (a round-3 review NIT assumption corrected).
+Same repair path, one command:
+
+```
+check-ops-drift.sh --reconcile --toward=repo --apply   # → both OK, rc 0, cmp identical
+```
+
+Content reconciled this round (`12 insertions(+), 2 deletions(-)`), independently re-verified
+against the live Go pricing table at `https://opencode.ai/docs/go`:
+
+- New rows: `gemini-4-argon` $2.00/$10.00/$0.10 (50%-off promo of $4.00/$20.00/$0.20; $30 monthly
+  limit), `kimi-k3.1-pro` $2.00/$10.00/$0.20/$2.00 ($15 limit), `minimax-m3.1-flash`
+  $0.15/$0.60/$0.015 (no cache-write; $20 limit), `iceman-contributor-free` — see the finding below.
+- `ll-alpha-free` re-commented as REMOVED from the free tier/zen on 2026-10-16 (≈6h lifespan);
+  the zero-cost row is retained so historical usage rows still price correctly.
+
+### Nits from the #39 review — outcome
+
+| Nit | Outcome |
+| --- | --- |
+| 1. `--reconcile --toward=repo --apply` only *warned* on a dirty worktree | **Fixed.** Now refuses with exit 1 and copies nothing; `--force` opts in. Check runs once, hoisted above the copy loop. |
+| 2. `--quiet --reconcile` still printed the "nothing to reconcile" INFO | **Fixed.** `--quiet` suppresses `OK:`/`INFO:`; `WARN:`/`ERROR:` always print (a quiet run must never hide a failure). |
+| 3. Dirty-worktree check ran once per drifted file | **Fixed** by the same hoist as nit 1. |
+| 4. `check-ops-drift.sh` + `test-check-ops-drift.sh` are repo-only | **Deferred, by design.** Nothing references them from cron, so there is no drift risk today. Deploying them is a live-environment write and stays part of the approval-gated follow-up. |
+| 5. `gemini-4-argon-contributor` carries a GUESS tuple | **Kept as a documented heuristic.** Still absent from the docs pricing table; it mirrors `muse-spark-1.3-contributor` ($0.10/$0.20/$0.002) because contributor tier is discounted for training rights. Treat as an estimate, not a billed number. |
+
+Harness grew from 18 to 24 assertions, all passing: refusal on a dirty worktree (exit 1, drifted
+file byte-unchanged), `--force` on a dirty worktree (exit 0, file equals deployed), `--force`
+rejected without a reconcile target (64) and with `--toward=deployed` (64), clean-worktree apply
+still succeeding, and `--quiet` reconcile on a clean tree printing no `INFO:`.
+
+### Finding beyond the issue: `iceman-contributor-free` is not a free-tier model
+
+The reconciled row prices it `(0.0, 0.0, 0.0, 0.0)` with the comment "Free / Unlimited (limited
+time); also on zen/go paid catalog". Two independent checks disagree:
+
+- `opencode models` lists it **only** as `opencode-go/iceman-contributor-free`; the free tier
+  (`opencode/…`) has 8 models and none of them is `iceman`.
+- The `https://opencode.ai/docs/go` page does not mention it at all, and the first real request to
+  it was rejected with *"This Go model trains on request data. Allow paid endpoints that train on
+  request data…"* — i.e. it is a contributor model gated behind the training-privacy setting, the
+  same class as the priced `muse-spark-*-contributor` rows.
+
+A `0.0` rate on a model that is probably billed **under-reports** spend, which is the one failure
+direction a quota meter must not have. It is deliberately **not** changed here: correcting a live
+rate changes reported dollars and therefore model-routing decisions, the same approval-gated class
+as the durable writer fix. Filed as a follow-up issue with the evidence above; until it is
+resolved, treat `iceman-contributor-free` usage as unpriced (hidden) spend.
+
+### MOA review round 1 (2026-10-30): verdict FIX, both blockers closed
+
+The gate returned `VERDICT: FIX` with two blockers and six nits, all in the reconcile path:
+
+- **Blocker — fail-open cleanliness check.** When `git status` itself failed (git missing, not a work
+  tree, dubious ownership) the script only printed `WARN: cannot verify…` and went on to copy, i.e. the
+  exact overwrite the refusal exists to prevent. Now `git rev-parse --is-inside-work-tree` runs first,
+  the cause is classified (git unavailable / not a git work tree / rev-parse failed / status failed) and
+  the run **fails closed** (exit 1, nothing copied) unless `--force` downgrades it to a WARN.
+- **Blocker — per-file preconditions.** Checks lived inside the copy loop, so a bad second entry left
+  the first already written (half-applied pair). A validation pre-pass now checks every pending write
+  (safe name, readable source, destination not a symlink, destination directory present and writable)
+  and exits 1 before the first byte is copied.
+- Nits: dirty status paths are now listed (capped at 10 with `... N more`); the in-flight
+  `$DST.tmp.$$` is removed by an EXIT/INT/TERM/HUP trap and `*.tmp.*` is gitignored so a killed run
+  cannot poison the worktree permanently; the cleanliness-check scope (`scripts/` only, untracked files
+  inside it count as dirty) is documented in the header and usage; `cmp` exit >= 2 is reported as
+  `ERROR: cannot compare …` instead of being mislabelled content drift; `PLAN:`/`APPLIED:` are
+  documented as always printed under `--quiet`; the refusal reason is emitted on stdout as well as
+  stderr so a stdout-only cron capture still shows why the run failed.
+
+Harness grew 24 → 29 assertions, including non-git fail-closed (and `--force` override), late
+validation failure leaving the earlier file byte-identical, the dirty refusal naming the offending
+path, and `PLAN:`/`APPLIED:` under `--quiet`.
+
+### MOA review round 2 (2026-11-08): verdict FIX, all four closed
+
+- **(blocking) truthy zero-rate `iceman-contributor-free` row.** Cause: `GO_RATES.get()` returned a
+  truthy `(0,0,0,0)` for a model on the Go *paid* catalog (the dict itself noted "also on zen/go paid
+  catalog"), so spend-reporting scripts booked every token at $0.00 — silent under-report. Fix:
+  deleted that single row from `scripts/morning_context.py` and `scripts/token_usage_report.py`
+  (repo copies only; `main` never had it); no replacement/sentinel rates invented and no pricing
+  logic changed, so the model now falls through to the unpriced/unknown path. Deployed copies in
+  `~/.hermes/scripts/` are untouched (deployment remains approval-gated). The paid-vs-free
+  classification decision for this model remains tracked in issue #43.
+- **Cleanliness scope was repo-wide, documented as scripts-only.** Cause:
+  `git -C "$REPO_RESOLVED" status --porcelain` (no pathspec) reported the whole work tree while the
+  header/help promised only `$REPO_RESOLVED`. Fix: `git status --porcelain -- .` scopes the check to
+  `$REPO_RESOLVED`; help/header state the true scope and that edits elsewhere in the repo are ignored
+  while untracked files inside the checked directory still count as dirty.
+- **Fail-closed refusals printed twice under `2>&1`.** Cause: each hard-failure `ERROR:` line was
+  echoed to stderr and again verbatim to stdout. Fix: stderr keeps the full `ERROR: ...`; stdout
+  emits exactly one short `REFUSED: <cause> — see stderr` per refusal
+  (`git-unavailable`/`not-a-work-tree`/`rev-parse-failed`/`status-failed`/`dirty-worktree`/`validation`),
+  always printed, never `--quiet`-gated. `--force` downgrade semantics unchanged. `REFUSED:` is
+  documented in the header and `--help`.
+- **Pre-write validation did not reject a directory destination.** Cause: only the symlinked-`$DST`
+  case was refused, so `mv -f` onto an existing directory could return 0 and relocate the temp file
+  *inside* it while still printing `APPLIED:` (defence-in-depth gap). The drift loop only reaches
+  `cmp` when both sides pass `[ -f ]`, so a directory destination never reached `cmp` at all—it was
+  silently invisible as drift, and reconcile would then move the temp file into the directory.
+  Fix: `[ -d "$DST" ]` rejection next to the `-L` test in the validation pre-pass and the copy loop,
+  sharing the validation-error counter and naming the path.
+
+Harness grew 29 → 32 scenarios (the harness's own summary line reports `32 passed, 0 failed`:
+directory-destination refusal preserving the directory, and an
+out-of-scope dirty file not blocking while an untracked file inside `scripts/` still does).
+
+### MOA review round 3 (2026-11-13): honest limits of the directory-destination tests
+
+Round 3 confirmed that the reconcile copy loop's `-d`/`-L` guards are defence-in-depth and cannot be exercised by an integration test through the drift path, because drift detection requires `[ -f ]` on both sides before a file enters `DRIFT_FILES`. Coverage of those guards therefore rests on the dry-run symlink refusal test (which reaches validation and emits `REFUSED: validation — see stderr` with the target unchanged) plus code review. The directory-at-repo-path fixtures were renamed to assert the actual reachable contract instead: exit 1, `ERROR: missing from repo scripts dir` on stderr, the directory preserved, no `APPLIED:` output, and no `*.tmp.*` litter. Missing-file ERRORs in the drift-detection branch now go to stderr as well, aligning stdout with the documented `OK`/`WARN`/`PLAN`/`APPLIED`/`REFUSED`/summary contract.
+
+### Still blocked on explicit user approval
+
+The durable fix — make the writer repo-aware, or single-source `GO_RATES` so the two meter scripts
+cannot diverge from the repo — changes live cron behaviour and is untouched. This note is the
+record of the decision needed: **either** teach the 08:02 writer to write through the repo (then
+deploy), **or** move `GO_RATES` into one imported module so there is a single copy to reconcile.
+

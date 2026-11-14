@@ -143,10 +143,39 @@ fi
 # Re-diverge after scenario J so this direction exercises an actual copy.
 printf '%s\n' '#!/usr/bin/env bash' 'echo v3-deployed' > "$HERMES_SCRIPTS/fixture_diff.sh"
 
+# --- non-git repo now fails closed before copying anything -------------------
+write_jobs '[{"script": "fixture_diff.sh"}]'
+repo_before_nongit="$(<"$REPO/fixture_diff.sh")"
+capture --reconcile --toward=repo --apply
+if [ "$RC" -eq 1 ] \
+    && printf '%s' "$OUT" | grep -q "cannot verify repo worktree cleanliness (not a git work tree)" \
+    && [ "$(<"$REPO/fixture_diff.sh")" = "$repo_before_nongit" ]; then
+  pass "non-git repo apply -> fail closed + exit 1 + file unchanged"
+else
+  fail "non-git repo apply -> fail closed + exit 1 + file unchanged (rc=$RC, out=$OUT)"
+fi
+
+# --- --force still applies on an unverifiable worktree -----------------------
+capture --reconcile --toward=repo --apply --force
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q "continuing because --force was given" \
+    && cmp -s "$REPO/fixture_diff.sh" "$HERMES_SCRIPTS/fixture_diff.sh"; then
+  pass "non-git repo apply --force -> warning + copy + exit 0"
+else
+  fail "non-git repo apply --force -> warning + copy + exit 0 (rc=$RC, out=$OUT)"
+fi
+
+# Scenario K now runs after a clean git init so the cleanliness check passes.
+printf '%s\n' '#!/usr/bin/env bash' 'echo v3b-deployed' > "$HERMES_SCRIPTS/fixture_diff.sh"
+REPO_ROOT="$TMP/repo"
+git -C "$REPO_ROOT" -c init.defaultBranch=main init -q
+git -C "$REPO_ROOT" add -A
+git -C "$REPO_ROOT" -c user.email=test@example.invalid -c user.name=test \
+  -c commit.gpgsign=false commit -q -m baseline-before-k
+
 # --- scenario K: reconcile repo apply ---------------------------------------
 capture --reconcile --toward=repo --apply
 if [ "$RC" -eq 0 ] && cmp -s "$REPO/fixture_diff.sh" "$HERMES_SCRIPTS/fixture_diff.sh" \
-    && grep -q 'v3-deployed' "$REPO/fixture_diff.sh"; then
+    && grep -q 'v3b-deployed' "$REPO/fixture_diff.sh"; then
   capture
   if [ "$RC" -eq 0 ]; then
     pass "reconcile toward repo apply -> equal + plain exit 0"
@@ -223,6 +252,221 @@ if [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -q "ERROR: unsafe script name"; 
 else
   fail "unsafe script name -> ERROR + exit 1 (rc=$RC, out=$OUT)"
 fi
+
+# --- scenario A: --quiet with no-drift reconcile -> no INFO: line ------------
+write_jobs '[{"script": "fixture_ok.sh"}]'
+capture --quiet --reconcile --toward=deployed
+if [ "$RC" -eq 0 ] && ! printf '%s' "$OUT" | grep -q "INFO:"; then
+  pass "--quiet no-drift reconcile -> exit 0 without INFO:"
+else
+  fail "--quiet no-drift reconcile -> exit 0 without INFO: (rc=$RC, out=$OUT)"
+fi
+
+# --- git-based scenarios: dirty-worktree refusal and --force -----------------
+# These scenarios re-init a git repo over the fixture root after scenarios A-L
+# have already run, so they cannot affect any earlier result.
+REPO_ROOT="$TMP/repo"
+git_commit() {
+  git -C "$REPO_ROOT" -c user.email=test@example.invalid -c user.name=test \
+    -c commit.gpgsign=false commit -q -m "$1"
+}
+git -C "$REPO_ROOT" -c init.defaultBranch=main init -q
+git -C "$REPO_ROOT" add -A
+git_commit baseline
+
+# --- scenario B: dirty repo worktree refuses --toward=repo --apply -----------
+printf '%s\n' '#!/usr/bin/env bash' 'echo v4-deployed' > "$HERMES_SCRIPTS/fixture_diff.sh"
+write_jobs '[{"script": "fixture_diff.sh"}]'
+printf '%s\n' '#!/usr/bin/env bash' 'echo uncommitted-repo-edit' > "$REPO/$FIX_OK"
+repo_diff_before="$(<"$REPO/fixture_diff.sh")"
+capture --reconcile --toward=repo --apply
+if [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -q "repo worktree is dirty" \
+    && printf '%s' "$OUT" | grep -q "fixture_ok.sh" \
+    && [ "$(<"$REPO/fixture_diff.sh")" = "$repo_diff_before" ]; then
+  pass "dirty repo worktree -> refuse apply + exit 1 + offending path + file unchanged"
+else
+  fail "dirty repo worktree -> refuse apply + exit 1 + file unchanged (rc=$RC, out=$OUT)"
+fi
+
+# --- scenario C: --force overrides the refusal and applies the copy ----------
+capture --reconcile --toward=repo --apply --force
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q "continuing because --force was given" \
+    && cmp -s "$REPO/fixture_diff.sh" "$HERMES_SCRIPTS/fixture_diff.sh"; then
+  pass "--force on dirty worktree -> exit 0 + repo file equals deployed"
+else
+  fail "--force on dirty worktree -> exit 0 + repo file equals deployed (rc=$RC, out=$OUT)"
+fi
+
+# --- scenario D: --force is only valid with --reconcile --apply --toward=repo -
+capture --force
+if [ "$RC" -eq 64 ]; then
+  pass "--force alone -> exit 64"
+else
+  fail "--force alone -> exit 64 (rc=$RC, out=$OUT)"
+fi
+
+capture --reconcile --toward=deployed --apply --force
+if [ "$RC" -eq 64 ]; then
+  pass "--force with --toward=deployed -> exit 64"
+else
+  fail "--force with --toward=deployed -> exit 64 (rc=$RC, out=$OUT)"
+fi
+
+# --- scenario E: clean repo worktree applies without --force ------------------
+git -C "$REPO_ROOT" add -A
+git_commit clean
+printf '%s\n' '#!/usr/bin/env bash' 'echo v5-deployed' > "$HERMES_SCRIPTS/fixture_diff.sh"
+capture --reconcile --toward=repo --apply
+if [ "$RC" -eq 0 ] && cmp -s "$REPO/fixture_diff.sh" "$HERMES_SCRIPTS/fixture_diff.sh" \
+    && grep -q 'v5-deployed' "$REPO/fixture_diff.sh"; then
+  pass "clean repo worktree -> apply succeeds + exit 0"
+else
+  fail "clean repo worktree -> apply succeeds + exit 0 (rc=$RC, out=$OUT)"
+fi
+
+# --- atomicity: late validation failure must not apply earlier files --------
+ATOMIC_A="fixture_atomic_a.sh"
+ATOMIC_B="fixture_atomic_b.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'echo atomic-a-repo' > "$REPO/$ATOMIC_A"
+printf '%s\n' '#!/usr/bin/env bash' 'echo atomic-a-deployed' > "$HERMES_SCRIPTS/$ATOMIC_A"
+printf '%s\n' 'echo atomic-b-target' > "$TMP/atomic-target.txt"
+ln -s "$TMP/atomic-target.txt" "$REPO/$ATOMIC_B"
+printf '%s\n' '#!/usr/bin/env bash' 'echo atomic-b-deployed' > "$HERMES_SCRIPTS/$ATOMIC_B"
+write_jobs "[{\"script\": \"$ATOMIC_A\"}, {\"script\": \"$ATOMIC_B\"}]"
+cp "$REPO/$ATOMIC_A" "$TMP/atomic-a-before"
+capture --reconcile --toward=repo --apply --force
+if [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -q "refusing to write through symlink" \
+    && cmp -s "$REPO/$ATOMIC_A" "$TMP/atomic-a-before"; then
+  pass "second destination symlink -> exit 1 + first file unmodified"
+else
+  fail "second destination symlink -> exit 1 + first file unmodified (rc=$RC, out=$OUT)"
+fi
+
+# --- --quiet still prints PLAN:/APPLIED: ------------------------------------
+QUIET_FIX="fixture_quiet.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'echo quiet-repo' > "$REPO/$QUIET_FIX"
+printf '%s\n' '#!/usr/bin/env bash' 'echo quiet-deployed' > "$HERMES_SCRIPTS/$QUIET_FIX"
+write_jobs "[{\"script\": \"$QUIET_FIX\"}]"
+capture --quiet --reconcile --toward=deployed
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q "^PLAN: cp " \
+    && ! printf '%s' "$OUT" | grep -q "^INFO:"; then
+  pass "--quiet reconcile dry run -> PLAN: printed"
+else
+  fail "--quiet reconcile dry run -> PLAN: printed (rc=$RC, out=$OUT)"
+fi
+
+capture --quiet --reconcile --toward=deployed --apply
+if [ "$RC" -eq 0 ] && printf '%s' "$OUT" | grep -q "^APPLIED: cp "; then
+  pass "--quiet reconcile apply -> APPLIED: printed"
+else
+  fail "--quiet reconcile apply -> APPLIED: printed (rc=$RC, out=$OUT)"
+fi
+
+# --- Finding 2: cleanliness scope is $REPO_RESOLVED only (scripts/) ---------
+# Reset to a clean git baseline with a drifted script.
+git -C "$REPO_ROOT" reset -q --hard
+git -C "$REPO_ROOT" clean -qfd
+SCOPE_FIX="fixture_scope.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'echo scope-repo' > "$REPO/$SCOPE_FIX"
+printf '%s\n' '#!/usr/bin/env bash' 'echo scope-deployed' > "$HERMES_SCRIPTS/$SCOPE_FIX"
+write_jobs "[{\"script\": \"$SCOPE_FIX\"}]"
+git -C "$REPO_ROOT" add -A
+git_commit scope-baseline
+
+# Dirty file OUTSIDE the checked dir (repo root) must NOT block reconcile.
+printf '%s\n' 'outside dirty' > "$REPO_ROOT/outside.txt"
+capture --reconcile --toward=repo --apply
+if [ "$RC" -eq 0 ] && cmp -s "$REPO/$SCOPE_FIX" "$HERMES_SCRIPTS/$SCOPE_FIX" \
+    && grep -q 'scope-deployed' "$REPO/$SCOPE_FIX"; then
+  pass "dirty file outside scripts/ -> reconcile still applies (scope = scripts/ only)"
+else
+  fail "dirty file outside scripts/ -> reconcile still applies (rc=$RC, out=$OUT)"
+fi
+
+# Untracked/dirty file INSIDE scripts/ must still block.
+rm -f "$REPO_ROOT/outside.txt"
+git -C "$REPO_ROOT" add -A
+git_commit scope-clean-inside
+printf '%s\n' '#!/usr/bin/env bash' 'echo scope-deployed-2' > "$HERMES_SCRIPTS/$SCOPE_FIX"
+write_jobs "[{\"script\": \"$SCOPE_FIX\"}]"
+repo_scope_before="$(<"$REPO/$SCOPE_FIX")"
+printf '%s\n' 'untracked inside' > "$REPO/untracked_inside.txt"
+capture --reconcile --toward=repo --apply
+if [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -q "repo worktree is dirty" \
+    && printf '%s' "$OUT" | grep -q "REFUSED: dirty-worktree" \
+    && [ "$(<"$REPO/$SCOPE_FIX")" = "$repo_scope_before" ]; then
+  pass "untracked file inside scripts/ -> refuse apply + REFUSED: dirty-worktree + unchanged"
+else
+  fail "untracked file inside scripts/ -> refuse apply + exit 1 (rc=$RC, out=$OUT)"
+fi
+rm -f "$REPO/untracked_inside.txt"
+
+# The checker's stderr/stdout split is by redirection in scripts/check-ops-drift.sh;
+# this harness asserts on merged output (run_checker captures 2>&1).
+# --- directory at repo path (apply) -> reachable contract ------------------
+git -C "$REPO_ROOT" add -A
+git_commit dir-dest-baseline 2>/dev/null || true
+DIRDEST_FIX="fixture_dirdest.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'echo dirdest-repo' > "$REPO/$DIRDEST_FIX"
+printf '%s\n' '#!/usr/bin/env bash' 'echo dirdest-deployed' > "$HERMES_SCRIPTS/$DIRDEST_FIX"
+git -C "$REPO_ROOT" add -A
+git_commit dir-dest-commit
+# Replace the repo-side path with a directory; drift detection requires [ -f ]
+# on both sides, so the -d guard in reconcile is not reachable via this path.
+rm -f "$REPO/$DIRDEST_FIX"
+mkdir -p "$REPO/$DIRDEST_FIX"
+write_jobs "[{\"script\": \"$DIRDEST_FIX\"}]"
+capture --reconcile --toward=repo --apply --force
+DIRDEST_TMP_LITTER="$(find "$REPO/$DIRDEST_FIX" -name '*.tmp.*' -print)"
+if [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -q "missing from repo scripts dir" \
+    && [ -d "$REPO/$DIRDEST_FIX" ] && [ -z "$DIRDEST_TMP_LITTER" ] \
+    && ! printf '%s' "$OUT" | grep -q "APPLIED:"; then
+  pass "directory at repo path (apply) -> exit 1, no APPLIED:, dir preserved, no temp litter"
+else
+  fail "directory at repo path (apply) -> exit 1, no APPLIED:, dir preserved, no temp litter (rc=$RC, dir=$([ -d "$REPO/$DIRDEST_FIX" ] && echo yes || echo no), litter=$DIRDEST_TMP_LITTER, out=$OUT)"
+fi
+rm -rf "$REPO/$DIRDEST_FIX"
+
+# --- dry-run reconcile onto a symlink destination -> refused on stdout ------
+SYMLINK_DRY_FIX="fixture_symlink_dry.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'echo symlink-dry-repo' > "$REPO/$SYMLINK_DRY_FIX"
+printf '%s\n' '#!/usr/bin/env bash' 'echo symlink-dry-deployed' > "$HERMES_SCRIPTS/$SYMLINK_DRY_FIX"
+git -C "$REPO_ROOT" add -A
+git_commit symlink-dry-baseline 2>/dev/null || true
+printf '%s\n' 'symlink-target-unchanged' > "$TMP/symlink-dry-target.txt"
+rm -f "$REPO/$SYMLINK_DRY_FIX"
+ln -s "$TMP/symlink-dry-target.txt" "$REPO/$SYMLINK_DRY_FIX"
+write_jobs "[{\"script\": \"$SYMLINK_DRY_FIX\"}]"
+capture --reconcile --toward=repo
+if [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -q "REFUSED: validation — see stderr" \
+    && [ "$(<"$TMP/symlink-dry-target.txt")" = "symlink-target-unchanged" ]; then
+  pass "dry-run reconcile onto symlink destination -> REFUSED stdout + target unchanged"
+else
+  fail "dry-run reconcile onto symlink destination -> REFUSED stdout + target unchanged (rc=$RC, out=$OUT)"
+fi
+rm -f "$REPO/$SYMLINK_DRY_FIX"
+rm -f "$TMP/symlink-dry-target.txt"
+
+
+# --- directory at repo path (dry-run) -> reachable contract ----------------
+DIRDEST_DRY_FIX="fixture_dirdest_dry.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'echo dirdest-dry-repo' > "$REPO/$DIRDEST_DRY_FIX"
+printf '%s\n' '#!/usr/bin/env bash' 'echo dirdest-dry-deployed' > "$HERMES_SCRIPTS/$DIRDEST_DRY_FIX"
+git -C "$REPO_ROOT" add -A
+git_commit dirdest-dry-baseline 2>/dev/null || true
+rm -f "$REPO/$DIRDEST_DRY_FIX"
+mkdir -p "$REPO/$DIRDEST_DRY_FIX"
+write_jobs "[{\"script\": \"$DIRDEST_DRY_FIX\"}]"
+capture --reconcile --toward=repo
+DIRDEST_DRY_TMP_LITTER="$(find "$REPO/$DIRDEST_DRY_FIX" -name '*.tmp.*' -print)"
+if [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -q "missing from repo scripts dir" \
+    && [ -d "$REPO/$DIRDEST_DRY_FIX" ] && [ -z "$DIRDEST_DRY_TMP_LITTER" ] \
+    && ! printf '%s' "$OUT" | grep -q "APPLIED:"; then
+  pass "directory at repo path (dry-run) -> exit 1, no APPLIED:, dir preserved"
+else
+  fail "directory at repo path (dry-run) -> exit 1, no APPLIED:, dir preserved (rc=$RC, dir=$([ -d "$REPO/$DIRDEST_DRY_FIX" ] && echo yes || echo no), litter=$DIRDEST_DRY_TMP_LITTER, out=$OUT)"
+fi
+rm -rf "$REPO/$DIRDEST_DRY_FIX"
 
 echo
 echo "$PASSED passed, $FAILURES failed"
