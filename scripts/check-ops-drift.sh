@@ -200,7 +200,7 @@ if [ "${#CRON_SCRIPTS[@]}" -gt 0 ]; then
           echo "OK: $S"
         fi
       elif [ "$CMP_RC" -ge 2 ]; then
-        echo "ERROR: cannot compare $REPO_FILE and $HERMES_FILE (cmp exit $CMP_RC)"
+        echo "ERROR: cannot compare $REPO_FILE and $HERMES_FILE (cmp exit $CMP_RC)" >&2
         RC=1
       else
         echo "WARN: $S content differs (one side edited; reconcile via repo then re-deploy)"
@@ -211,11 +211,11 @@ if [ "${#CRON_SCRIPTS[@]}" -gt 0 ]; then
       fi
     else
       if [ ! -f "$REPO_FILE" ]; then
-        echo "ERROR: $S missing from repo scripts dir"
+        echo "ERROR: $S missing from repo scripts dir" >&2
         RC=1
       fi
       if [ ! -f "$HERMES_FILE" ]; then
-        echo "ERROR: $S missing from HERMES scripts dir"
+        echo "ERROR: $S missing from HERMES scripts dir" >&2
         RC=1
       fi
     fi
@@ -363,6 +363,7 @@ if [ "$RECONCILE" -eq 1 ]; then
   for S in "${DRIFT_FILES[@]:-}"; do
     if ! [[ "$S" =~ ^[A-Za-z0-9._-]+$ ]] || [[ "$S" = .* ]] || [[ "$S" = */* ]]; then
       echo "ERROR: unsafe script name '$S' in $CRON_JOBS" >&2
+      printf 'REFUSED: validation — see stderr\n'
       exit 1
     fi
     if [ "$TOWARD" = "deployed" ]; then
@@ -374,9 +375,11 @@ if [ "$RECONCILE" -eq 1 ]; then
     fi
     if [ -L "$DST" ]; then
       echo "ERROR: refusing to write through symlink $DST" >&2
+      printf 'REFUSED: validation — see stderr\n'
       exit 1
     elif [ -d "$DST" ]; then
       echo "ERROR: refusing to overwrite existing directory $DST" >&2
+      printf 'REFUSED: validation — see stderr\n'
       exit 1
     fi
     if [ "$APPLY" -eq 1 ]; then

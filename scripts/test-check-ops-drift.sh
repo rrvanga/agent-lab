@@ -401,7 +401,9 @@ else
 fi
 rm -f "$REPO/untracked_inside.txt"
 
-# --- Finding 4: destination is an existing directory -> reject, no copy ------
+# The checker's stderr/stdout split is by redirection in scripts/check-ops-drift.sh;
+# this harness asserts on merged output (run_checker captures 2>&1).
+# --- directory at repo path (apply) -> reachable contract ------------------
 git -C "$REPO_ROOT" add -A
 git_commit dir-dest-baseline 2>/dev/null || true
 DIRDEST_FIX="fixture_dirdest.sh"
@@ -409,18 +411,62 @@ printf '%s\n' '#!/usr/bin/env bash' 'echo dirdest-repo' > "$REPO/$DIRDEST_FIX"
 printf '%s\n' '#!/usr/bin/env bash' 'echo dirdest-deployed' > "$HERMES_SCRIPTS/$DIRDEST_FIX"
 git -C "$REPO_ROOT" add -A
 git_commit dir-dest-commit
-# Replace the repo-side destination with a directory.
+# Replace the repo-side path with a directory; drift detection requires [ -f ]
+# on both sides, so the -d guard in reconcile is not reachable via this path.
 rm -f "$REPO/$DIRDEST_FIX"
 mkdir -p "$REPO/$DIRDEST_FIX"
 write_jobs "[{\"script\": \"$DIRDEST_FIX\"}]"
 capture --reconcile --toward=repo --apply --force
-if [ "$RC" -eq 1 ] && [ -d "$REPO/$DIRDEST_FIX" ] \
-    && [ ! -e "$REPO/$DIRDEST_FIX/$DIRDEST_FIX" ]; then
-  pass "destination is a directory -> exit 1 + nothing copied, dir preserved"
+DIRDEST_TMP_LITTER="$(find "$REPO/$DIRDEST_FIX" -name '*.tmp.*' -print)"
+if [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -q "missing from repo scripts dir" \
+    && [ -d "$REPO/$DIRDEST_FIX" ] && [ -z "$DIRDEST_TMP_LITTER" ] \
+    && ! printf '%s' "$OUT" | grep -q "APPLIED:"; then
+  pass "directory at repo path (apply) -> exit 1, no APPLIED:, dir preserved, no temp litter"
 else
-  fail "destination is a directory -> exit 1 + nothing copied (rc=$RC, dir=$([ -d "$REPO/$DIRDEST_FIX" ] && echo yes || echo no), inside=$([ -e "$REPO/$DIRDEST_FIX/$DIRDEST_FIX" ] && echo yes || echo no), out=$OUT)"
+  fail "directory at repo path (apply) -> exit 1, no APPLIED:, dir preserved, no temp litter (rc=$RC, dir=$([ -d "$REPO/$DIRDEST_FIX" ] && echo yes || echo no), litter=$DIRDEST_TMP_LITTER, out=$OUT)"
 fi
 rm -rf "$REPO/$DIRDEST_FIX"
+
+# --- dry-run reconcile onto a symlink destination -> refused on stdout ------
+SYMLINK_DRY_FIX="fixture_symlink_dry.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'echo symlink-dry-repo' > "$REPO/$SYMLINK_DRY_FIX"
+printf '%s\n' '#!/usr/bin/env bash' 'echo symlink-dry-deployed' > "$HERMES_SCRIPTS/$SYMLINK_DRY_FIX"
+git -C "$REPO_ROOT" add -A
+git_commit symlink-dry-baseline 2>/dev/null || true
+printf '%s\n' 'symlink-target-unchanged' > "$TMP/symlink-dry-target.txt"
+rm -f "$REPO/$SYMLINK_DRY_FIX"
+ln -s "$TMP/symlink-dry-target.txt" "$REPO/$SYMLINK_DRY_FIX"
+write_jobs "[{\"script\": \"$SYMLINK_DRY_FIX\"}]"
+capture --reconcile --toward=repo
+if [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -q "REFUSED: validation — see stderr" \
+    && [ "$(<"$TMP/symlink-dry-target.txt")" = "symlink-target-unchanged" ]; then
+  pass "dry-run reconcile onto symlink destination -> REFUSED stdout + target unchanged"
+else
+  fail "dry-run reconcile onto symlink destination -> REFUSED stdout + target unchanged (rc=$RC, out=$OUT)"
+fi
+rm -f "$REPO/$SYMLINK_DRY_FIX"
+rm -f "$TMP/symlink-dry-target.txt"
+
+
+# --- directory at repo path (dry-run) -> reachable contract ----------------
+DIRDEST_DRY_FIX="fixture_dirdest_dry.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'echo dirdest-dry-repo' > "$REPO/$DIRDEST_DRY_FIX"
+printf '%s\n' '#!/usr/bin/env bash' 'echo dirdest-dry-deployed' > "$HERMES_SCRIPTS/$DIRDEST_DRY_FIX"
+git -C "$REPO_ROOT" add -A
+git_commit dirdest-dry-baseline 2>/dev/null || true
+rm -f "$REPO/$DIRDEST_DRY_FIX"
+mkdir -p "$REPO/$DIRDEST_DRY_FIX"
+write_jobs "[{\"script\": \"$DIRDEST_DRY_FIX\"}]"
+capture --reconcile --toward=repo
+DIRDEST_DRY_TMP_LITTER="$(find "$REPO/$DIRDEST_DRY_FIX" -name '*.tmp.*' -print)"
+if [ "$RC" -eq 1 ] && printf '%s' "$OUT" | grep -q "missing from repo scripts dir" \
+    && [ -d "$REPO/$DIRDEST_DRY_FIX" ] && [ -z "$DIRDEST_DRY_TMP_LITTER" ] \
+    && ! printf '%s' "$OUT" | grep -q "APPLIED:"; then
+  pass "directory at repo path (dry-run) -> exit 1, no APPLIED:, dir preserved"
+else
+  fail "directory at repo path (dry-run) -> exit 1, no APPLIED:, dir preserved (rc=$RC, dir=$([ -d "$REPO/$DIRDEST_DRY_FIX" ] && echo yes || echo no), litter=$DIRDEST_DRY_TMP_LITTER, out=$OUT)"
+fi
+rm -rf "$REPO/$DIRDEST_DRY_FIX"
 
 echo
 echo "$PASSED passed, $FAILURES failed"

@@ -130,7 +130,10 @@ before any merge of this branch: exactly the signal the issue asked for, now act
 
 The 08:02 catalogue writer fired again (fifth recurrence: `#22`, `#28`, `#36/#37`, `#39`,
 2026-10-29), so the checker was already doing its job on `main`: `rc=3` with
-`morning_context.py` and `token_usage_report.py` both `WARN`. Same repair path, one command:
+`morning_context.py` and `token_usage_report.py` both `WARN`. Exit code 3 = content drift is
+documented in the script header and `--help` (0 clean / 1 error / 2 jobs.json / 3 drift / 64 usage),
+so this `rc=3` record is drift, not an undocumented error (a round-3 review NIT assumption corrected).
+Same repair path, one command:
 
 ```
 check-ops-drift.sh --reconcile --toward=repo --apply   # → both OK, rc 0, cmp identical
@@ -226,13 +229,19 @@ path, and `PLAN:`/`APPLIED:` under `--quiet`.
   documented in the header and `--help`.
 - **Pre-write validation did not reject a directory destination.** Cause: only the symlinked-`$DST`
   case was refused, so `mv -f` onto an existing directory could return 0 and relocate the temp file
-  *inside* it while still printing `APPLIED:` (defence-in-depth gap; normally masked by `cmp` rc>=2).
+  *inside* it while still printing `APPLIED:` (defence-in-depth gap). The drift loop only reaches
+  `cmp` when both sides pass `[ -f ]`, so a directory destination never reached `cmp` at all—it was
+  silently invisible as drift, and reconcile would then move the temp file into the directory.
   Fix: `[ -d "$DST" ]` rejection next to the `-L` test in the validation pre-pass and the copy loop,
   sharing the validation-error counter and naming the path.
 
 Harness grew 29 → 32 scenarios (the harness's own summary line reports `32 passed, 0 failed`:
 directory-destination refusal preserving the directory, and an
 out-of-scope dirty file not blocking while an untracked file inside `scripts/` still does).
+
+### MOA review round 3 (2026-11-13): honest limits of the directory-destination tests
+
+Round 3 confirmed that the reconcile copy loop's `-d`/`-L` guards are defence-in-depth and cannot be exercised by an integration test through the drift path, because drift detection requires `[ -f ]` on both sides before a file enters `DRIFT_FILES`. Coverage of those guards therefore rests on the dry-run symlink refusal test (which reaches validation and emits `REFUSED: validation — see stderr` with the target unchanged) plus code review. The directory-at-repo-path fixtures were renamed to assert the actual reachable contract instead: exit 1, `ERROR: missing from repo scripts dir` on stderr, the directory preserved, no `APPLIED:` output, and no `*.tmp.*` litter. Missing-file ERRORs in the drift-detection branch now go to stderr as well, aligning stdout with the documented `OK`/`WARN`/`PLAN`/`APPLIED`/`REFUSED`/summary contract.
 
 ### Still blocked on explicit user approval
 
